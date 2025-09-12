@@ -49,10 +49,10 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
       setIsRecording(true);
       startTimeRef.current = Date.now();
       
-      // Update duration every 100ms
+      // Update duration every second
       intervalRef.current = setInterval(() => {
-        setDuration(Date.now() - startTimeRef.current);
-      }, 100);
+        setDuration(Math.floor((Date.now() - startTimeRef.current) / 1000));
+      }, 1000);
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to start recording');
@@ -98,6 +98,7 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
       mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
       
       setIsRecording(false);
+      setDuration(0); // Reset duration
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;

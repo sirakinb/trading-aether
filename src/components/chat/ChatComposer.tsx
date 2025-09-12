@@ -11,8 +11,9 @@ import {
   X, 
   Image as ImageIcon,
   BarChart3 
-} from 'lucide-react';
+ } from 'lucide-react';
 import { useAudioRecorder } from '@/hooks/useAudioRecorder';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ChatComposerProps {
   onSendMessage: (text: string, imageUrl?: string, isAnalysis?: boolean) => void;
@@ -84,8 +85,20 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
       try {
         const audioUrl = await stopRecording();
         if (audioUrl) {
-          // TODO: Transcribe audio and add to message
-          console.log('Audio recorded:', audioUrl);
+          // Call transcription edge function
+          const { data, error } = await supabase.functions.invoke('transcribe', {
+            body: { audioUrl }
+          });
+
+          if (error) {
+            console.error('Transcription error:', error);
+            return;
+          }
+
+          if (data?.text) {
+            // Append transcript to existing message
+            setMessage(prev => prev ? `${prev}\n\n${data.text}` : data.text);
+          }
         }
       } catch (error) {
         console.error('Error stopping recording:', error);
