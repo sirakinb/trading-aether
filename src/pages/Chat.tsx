@@ -295,7 +295,7 @@ const Chat = () => {
         </div>
 
         {/* Conversation View */}
-        <ConversationView messages={messages} />
+        <ConversationView messages={messages} isLoading={isLoading} />
 
         {/* Chat Composer */}
         <div className="border-t p-4">
