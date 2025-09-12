@@ -43,6 +43,7 @@ export default function Chat() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Audio recording hook
@@ -97,9 +98,6 @@ export default function Chat() {
     const url = await uploadToCharts(file);
     if (url) {
       setUploadedImage({ url, name: file.name });
-      setIsAnalyzing(true);
-      // Simulate analysis
-      setTimeout(() => setIsAnalyzing(false), 2000);
     }
   };
 
@@ -133,7 +131,60 @@ export default function Chat() {
 
   const removeImage = () => {
     setUploadedImage(null);
-    setIsAnalyzing(false);
+    setAnalysisResult(null);
+  };
+
+  const handleSend = async () => {
+    if (!message.trim() && !uploadedImage) return;
+    
+    try {
+      setIsAnalyzing(true);
+      
+      const requestBody: any = {};
+      
+      if (uploadedImage) {
+        requestBody.imageUrls = [uploadedImage.url];
+      }
+      
+      if (message.trim()) {
+        requestBody.contextText = message.trim();
+      }
+
+      const { data, error } = await supabase.functions.invoke('analyze', {
+        body: requestBody
+      });
+
+      if (error) {
+        console.error('Analysis error:', error);
+        toast({
+          title: "Analysis Error",
+          description: "Failed to analyze your content. Please try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setAnalysisResult(data);
+      console.log('Analysis result:', data);
+      
+      toast({
+        title: "Analysis Complete",
+        description: "Your trading analysis is ready!",
+      });
+      
+    } catch (error) {
+      console.error('Send error:', error);
+      toast({
+        title: "Error",
+        description: "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAnalyzing(false);
+      // Reset form
+      setMessage("");
+      setUploadedImage(null);
+    }
   };
 
   const handleVoiceRecording = async () => {
@@ -372,8 +423,24 @@ export default function Chat() {
                   />
                 </div>
               </div>
-              <Button variant="premium" size="lg" className="self-end">
-                <Send className="h-4 w-4" />
+              <Button 
+                variant="premium" 
+                size="lg" 
+                className="self-end min-w-[120px]"
+                onClick={handleSend}
+                disabled={(!message.trim() && !uploadedImage) || isAnalyzing}
+              >
+                {isAnalyzing ? (
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Analyzing...
+                  </div>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4 mr-2" />
+                    Send Analysis
+                  </>
+                )}
               </Button>
             </div>
             
@@ -391,6 +458,140 @@ export default function Chat() {
             </div>
           </div>
         </div>
+
+        {/* Analysis Results */}
+        {analysisResult && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="max-w-4xl mx-auto p-6"
+          >
+            <TradingCard className="bg-card">
+              <TradingCardContent className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-foreground">Trading Analysis</h3>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setAnalysisResult(null)}
+                    className="h-8 w-8 p-0"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+                
+                {/* Main Narrative */}
+                <div className="mb-6">
+                  <h4 className="font-medium mb-2 text-foreground">Coach Feedback</h4>
+                  <p className="text-muted-foreground whitespace-pre-line">
+                    {analysisResult.feedback?.narrative}
+                  </p>
+                </div>
+
+                {/* Structured Sections */}
+                <div className="grid gap-4 md:grid-cols-2">
+                  {/* Confluences */}
+                  {analysisResult.feedback?.confluences?.length > 0 && (
+                    <div className="bg-green-50 dark:bg-green-950/20 p-4 rounded-lg">
+                      <h4 className="font-medium mb-2 text-green-700 dark:text-green-400">
+                        ✅ Positive Signals
+                      </h4>
+                      <ul className="space-y-1">
+                        {analysisResult.feedback.confluences.map((item: string, index: number) => (
+                          <li key={index} className="text-sm text-green-600 dark:text-green-300">
+                            • {item}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Risks */}
+                  {analysisResult.feedback?.risks?.length > 0 && (
+                    <div className="bg-red-50 dark:bg-red-950/20 p-4 rounded-lg">
+                      <h4 className="font-medium mb-2 text-red-700 dark:text-red-400">
+                        ⚠️ Key Risks
+                      </h4>
+                      <ul className="space-y-1">
+                        {analysisResult.feedback.risks.map((item: string, index: number) => (
+                          <li key={index} className="text-sm text-red-600 dark:text-red-300">
+                            • {item}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+
+                {/* Scenarios */}
+                {(analysisResult.feedback?.scenarios?.bull || 
+                  analysisResult.feedback?.scenarios?.bear || 
+                  analysisResult.feedback?.scenarios?.invalidation) && (
+                  <div className="mt-4 bg-blue-50 dark:bg-blue-950/20 p-4 rounded-lg">
+                    <h4 className="font-medium mb-3 text-blue-700 dark:text-blue-400">
+                      📊 Market Scenarios
+                    </h4>
+                    <div className="space-y-2 text-sm">
+                      {analysisResult.feedback.scenarios.bull && (
+                        <div>
+                          <span className="font-medium text-green-600 dark:text-green-400">Bull Case: </span>
+                          <span className="text-blue-600 dark:text-blue-300">{analysisResult.feedback.scenarios.bull}</span>
+                        </div>
+                      )}
+                      {analysisResult.feedback.scenarios.bear && (
+                        <div>
+                          <span className="font-medium text-red-600 dark:text-red-400">Bear Case: </span>
+                          <span className="text-blue-600 dark:text-blue-300">{analysisResult.feedback.scenarios.bear}</span>
+                        </div>
+                      )}
+                      {analysisResult.feedback.scenarios.invalidation && (
+                        <div>
+                          <span className="font-medium text-orange-600 dark:text-orange-400">Invalidation: </span>
+                          <span className="text-blue-600 dark:text-blue-300">{analysisResult.feedback.scenarios.invalidation}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Checklist */}
+                {analysisResult.feedback?.checklist?.length > 0 && (
+                  <div className="mt-4 bg-purple-50 dark:bg-purple-950/20 p-4 rounded-lg">
+                    <h4 className="font-medium mb-2 text-purple-700 dark:text-purple-400">
+                      📋 Action Items
+                    </h4>
+                    <ul className="space-y-1">
+                      {analysisResult.feedback.checklist.map((item: string, index: number) => (
+                        <li key={index} className="text-sm text-purple-600 dark:text-purple-300">
+                          {index + 1}. {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Psychology Hint */}
+                {analysisResult.feedback?.psychology_hint && (
+                  <div className="mt-4 bg-yellow-50 dark:bg-yellow-950/20 p-4 rounded-lg">
+                    <h4 className="font-medium mb-2 text-yellow-700 dark:text-yellow-400">
+                      🧠 Psychology Note
+                    </h4>
+                    <p className="text-sm text-yellow-600 dark:text-yellow-300">
+                      {analysisResult.feedback.psychology_hint}
+                    </p>
+                  </div>
+                )}
+
+                {/* Latency */}
+                {analysisResult.latency_ms && (
+                  <div className="mt-4 text-xs text-muted-foreground text-center">
+                    Analysis completed in {analysisResult.latency_ms}ms
+                  </div>
+                )}
+              </TradingCardContent>
+            </TradingCard>
+          </motion.div>
+        )}
       </div>
     </AppLayout>
   );
