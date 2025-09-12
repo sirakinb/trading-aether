@@ -80,8 +80,11 @@ serve(async (req) => {
 
     const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
     if (!openAIApiKey) {
+      console.error('OpenAI API key not configured');
       throw new Error('OpenAI API key not configured');
     }
+    
+    console.log('OpenAI API key found:', !!openAIApiKey);
 
     // Get user memories if enabled
     let memories: string[] = [];
@@ -110,8 +113,8 @@ serve(async (req) => {
 
     // Determine model based on presence of images
     const hasImages = imageUrls?.length > 0;
-    // Use GPT-4.1 for both text and vision for now to avoid potential GPT-5 issues
-    const model = 'gpt-4.1-2025-04-14';
+    // Use a more stable model
+    const model = hasImages ? 'gpt-4o' : 'gpt-4o-mini';
     
     console.log(`Using model: ${model} (${hasImages ? 'vision' : 'text-only'})`);
 
@@ -156,16 +159,21 @@ serve(async (req) => {
       body: JSON.stringify({
         model,
         messages,
-        max_completion_tokens: 2000,
-        temperature: 0.6, // Always include temperature for GPT-4.1
+        max_tokens: 2000,
+        temperature: 0.6,
         response_format: { type: "json_object" }
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('OpenAI API error:', errorText);
-      throw new Error(`OpenAI API error: ${response.status} ${errorText}`);
+      console.error('OpenAI API error:', {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText,
+        url: response.url
+      });
+      throw new Error(`OpenAI API error: ${response.status} ${response.statusText} - ${errorText}`);
     }
 
     const data = await response.json();
@@ -203,7 +211,11 @@ serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('Error in analyze function:', error);
+    console.error('Error in analyze function:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
     return new Response(JSON.stringify({ 
       error: error.message,
       feedback: {
