@@ -14,7 +14,158 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      conversations: {
+        Row: {
+          created_at: string | null
+          id: string
+          title: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          title?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          title?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      memories: {
+        Row: {
+          content: string | null
+          created_at: string | null
+          id: string
+          kind: string | null
+          user_id: string
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string | null
+          id?: string
+          kind?: string | null
+          user_id: string
+        }
+        Update: {
+          content?: string | null
+          created_at?: string | null
+          id?: string
+          kind?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      messages: {
+        Row: {
+          conversation_id: string | null
+          created_at: string | null
+          id: string
+          image_url: string | null
+          role: string | null
+          text: string | null
+          tokens: number | null
+          voice_url: string | null
+        }
+        Insert: {
+          conversation_id?: string | null
+          created_at?: string | null
+          id?: string
+          image_url?: string | null
+          role?: string | null
+          text?: string | null
+          tokens?: number | null
+          voice_url?: string | null
+        }
+        Update: {
+          conversation_id?: string | null
+          created_at?: string | null
+          id?: string
+          image_url?: string | null
+          role?: string | null
+          text?: string | null
+          tokens?: number | null
+          voice_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trades: {
+        Row: {
+          conversation_id: string | null
+          created_at: string | null
+          direction: string | null
+          entry_plan: string | null
+          id: string
+          instrument: string | null
+          message_id: string | null
+          notes: string | null
+          outcome: string | null
+          rr_numeric: number | null
+          tags: string[] | null
+          timeframes: string[] | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          conversation_id?: string | null
+          created_at?: string | null
+          direction?: string | null
+          entry_plan?: string | null
+          id?: string
+          instrument?: string | null
+          message_id?: string | null
+          notes?: string | null
+          outcome?: string | null
+          rr_numeric?: number | null
+          tags?: string[] | null
+          timeframes?: string[] | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string | null
+          created_at?: string | null
+          direction?: string | null
+          entry_plan?: string | null
+          id?: string
+          instrument?: string | null
+          message_id?: string | null
+          notes?: string | null
+          outcome?: string | null
+          rr_numeric?: number | null
+          tags?: string[] | null
+          timeframes?: string[] | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trades_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trades_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
