@@ -98,12 +98,17 @@ const Chat = () => {
 
   // Upload file to Supabase Storage and get signed URL
   const uploadToCharts = async (file: File): Promise<string> => {
-    const fileName = `${Date.now()}-${file.name}`;
-    const filePath = `charts/${fileName}`;
+    // Sanitize filename: remove spaces and special characters
+    const sanitizedName = file.name
+      .replace(/[^a-zA-Z0-9.-]/g, '_')
+      .replace(/_{2,}/g, '_') // Replace multiple underscores with single
+      .replace(/^_+|_+$/g, ''); // Remove leading/trailing underscores
+    
+    const fileName = `${Date.now()}_${sanitizedName}`;
 
     const { error: uploadError } = await supabase.storage
       .from('charts')
-      .upload(filePath, file);
+      .upload(fileName, file); // Don't add charts/ prefix - it's already in the bucket
 
     if (uploadError) {
       throw new Error(`Upload failed: ${uploadError.message}`);
@@ -111,7 +116,7 @@ const Chat = () => {
 
     const { data: signedUrlData, error: signedUrlError } = await supabase.storage
       .from('charts')
-      .createSignedUrl(filePath, 60 * 60 * 24);
+      .createSignedUrl(fileName, 60 * 60 * 24);
 
     if (signedUrlError || !signedUrlData) {
       throw new Error(`Failed to get signed URL: ${signedUrlError?.message}`);
