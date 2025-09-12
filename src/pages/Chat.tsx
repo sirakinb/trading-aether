@@ -246,29 +246,23 @@ const Chat = () => {
   return (
     <AppLayout title="AI Trading Coach" subtitle="Chat with your AI trading mentor">
       <div className="flex flex-col h-screen">
-        {/* Header */}
+        {/* Header with Memory Toggle */}
         <div className="border-b bg-card">
-          <div className="max-w-4xl mx-auto px-4 py-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-bold">AI Trading Coach</h1>
-                <p className="text-muted-foreground">Chat with your AI trading mentor</p>
+          <div className="max-w-4xl mx-auto px-4 py-3">
+            <div className="flex items-center justify-end gap-4">
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="memory-mode"
+                  checked={useMemory}
+                  onCheckedChange={setUseMemory}
+                />
+                <Label htmlFor="memory-mode" className="text-sm">
+                  Use Memory
+                </Label>
               </div>
-              <div className="flex items-center gap-4">
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="memory-mode"
-                    checked={useMemory}
-                    onCheckedChange={setUseMemory}
-                  />
-                  <Label htmlFor="memory-mode" className="text-sm">
-                    Use Memory
-                  </Label>
-                </div>
-                <div className="flex items-center gap-2 bg-green-50 text-green-700 border border-green-200 rounded-full px-3 py-1">
-                  <div className="w-2 h-2 bg-green-500 rounded-full" />
-                  <span className="text-sm">Online</span>
-                </div>
+              <div className="flex items-center gap-2 bg-green-50 text-green-700 border border-green-200 rounded-full px-3 py-1">
+                <div className="w-2 h-2 bg-green-500 rounded-full" />
+                <span className="text-sm">Online</span>
               </div>
             </div>
           </div>
