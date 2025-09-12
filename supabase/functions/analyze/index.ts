@@ -82,36 +82,103 @@ serve(async (req) => {
       throw new Error('Either imageUrls or contextText must be provided');
     }
 
-    // For now, let's return a simple test response to see if the function works
-    const feedback = {
-      narrative: requestAnalysis 
-        ? "I can see you're looking at the Micro E-mini Nasdaq-100 futures chart. The price action shows strong momentum with higher highs and higher lows since March. We're testing new territory around 24,113 which is exciting, but I'd want to see some volume confirmation on any breakout attempt. What's your take on the current setup?"
-        : "Looking at this chart, I see some interesting price action. What's your thoughts on where this might be heading?",
-      ...(requestAnalysis && {
-        confluences: [
-          "Strong uptrend structure with higher highs and lows",
-          "Price testing new highs around 24,113",
-          "Consistent bullish momentum since March reversal"
-        ],
-        risks: [
-          "Low volume on recent push higher",
-          "Potential double top formation at these levels",
-          "Overbought conditions in short term"
-        ],
-        scenarios: {
-          bull: "Break above 24,113 with volume could target 24,300-24,500 zone",
-          bear: "Rejection here could see pullback to 23,800 support",
-          invalidation: "Daily close below 23,700 would shift bias bearish"
-        },
-        checklist: [
-          "Watch for volume on any breakout attempt",
-          "Set alerts above/below key levels",
-          "Monitor broader market sentiment",
-          "Keep risk tight given extended move"
-        ],
-        psychology_hint: "Don't chase breakouts without confirmation - patience pays in these extended moves."
-      })
-    };
+    // Check OpenAI API key
+    const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+    if (!openAIApiKey) {
+      console.error('OpenAI API key not configured');
+      throw new Error('OpenAI API key not configured');
+    }
+    
+    console.log('OpenAI API key found:', !!openAIApiKey);
+
+    // Use simple models for now
+    const hasImages = imageUrls?.length > 0;
+    const model = hasImages ? 'gpt-4o' : 'gpt-4o-mini';
+    
+    console.log(`Using model: ${model} (${hasImages ? 'vision' : 'text-only'})`);
+    // Build simple system prompt
+    const systemPrompt = requestAnalysis 
+      ? `You are an experienced trading coach. Respond naturally and conversationally like you're chatting with a fellow trader. Provide both narrative feedback AND structured analysis. Respond with a JSON object:
+{
+  "narrative": "Natural conversational response",
+  "confluences": ["Positive signals if any"],
+  "risks": ["Key risks if any"], 
+  "scenarios": {"bull": "Bullish scenario", "bear": "Bearish scenario", "invalidation": "Invalidation level"},
+  "checklist": ["Action items"],
+  "psychology_hint": "Mindset note"
+}`
+      : `You are an experienced trading coach. Respond naturally and conversationally like you're chatting with a fellow trader. Keep it concise. Respond with JSON: {"narrative": "Natural response"}`;
+
+    // Build messages
+    const messages = [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: contextText || "Please analyze this trading chart" }
+    ];
+
+    // Add images if provided
+    if (imageUrls?.length) {
+      messages[1] = {
+        role: "user",
+        content: [
+          { type: "text", text: contextText || "Please analyze this trading chart" },
+          { 
+            type: "image_url", 
+            image_url: { 
+              url: imageUrls[0],
+              detail: "high"
+            }
+          }
+        ]
+      };
+    }
+
+    console.log(`Calling OpenAI with model ${model}`);
+
+    // Call OpenAI API
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openAIApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        max_tokens: 1500,
+        temperature: 0.7,
+        response_format: { type: "json_object" }
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('OpenAI API error:', {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText
+      });
+      throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    console.log('OpenAI response received');
+
+    const rawContent = data.choices[0].message?.content ?? "";
+    
+    let feedback: any;
+    try {
+      feedback = JSON.parse(rawContent);
+    } catch (parseError) {
+      console.warn('Failed to parse JSON response, using fallback');
+      feedback = {
+        narrative: rawContent || "I'm having trouble processing your request right now. Please try again.",
+      };
+    }
+
+    // Ensure we have at least a narrative response
+    if (!feedback.narrative) {
+      feedback.narrative = "I'm processing your request. Please try again.";
+    }
 
     const latency_ms = Date.now() - start;
     console.log(`Analysis completed in ${latency_ms}ms`);
