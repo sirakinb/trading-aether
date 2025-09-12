@@ -140,7 +140,7 @@ serve(async (req) => {
         model,
         messages,
         max_completion_tokens: 2000,
-        temperature: 0.6,
+        ...(hasImages ? { temperature: 0.6 } : {}), // Only add temperature for GPT-4.1 (vision)
         response_format: { type: "json_object" }
       }),
     });
