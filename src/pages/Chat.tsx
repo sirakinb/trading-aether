@@ -57,7 +57,13 @@ export default function Chat() {
   const uploadToCharts = async (file: File): Promise<string | null> => {
     try {
       setIsUploading(true);
-      const fileName = `${Date.now()}-${file.name}`;
+      
+      // Sanitize filename: remove spaces, special chars, keep only alphanumeric, dots, hyphens
+      const sanitizedName = file.name
+        .replace(/[^a-zA-Z0-9.-]/g, '_')
+        .replace(/_{2,}/g, '_'); // Replace multiple underscores with single
+      
+      const fileName = `${Date.now()}_${sanitizedName}`;
       
       const { data, error } = await supabase.storage
         .from('charts')
