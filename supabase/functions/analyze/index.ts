@@ -72,29 +72,39 @@ serve(async (req) => {
     // Get user memories if enabled
     let memories: string[] = [];
     if (useMemory && conversationId) {
-      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-      const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-      const supabase = createClient(supabaseUrl, supabaseKey);
+      try {
+        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+        const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+        const supabase = createClient(supabaseUrl, supabaseKey);
 
-      const authHeader = req.headers.get('Authorization');
-      if (authHeader) {
-        supabase.auth.setAuth(authHeader.replace('Bearer ', ''));
-      }
+        const authHeader = req.headers.get('Authorization');
+        if (authHeader) {
+          // Set the authorization header properly
+          supabase.rest.headers['Authorization'] = authHeader;
+          supabase.realtime.headers['Authorization'] = authHeader;
+        }
 
-      const { data: memoriesData } = await supabase
-        .from('memories')
-        .select('kind, content')
-        .order('created_at', { ascending: false })
-        .limit(10);
+        const { data: memoriesData, error: memoriesError } = await supabase
+          .from('memories')
+          .select('kind, content')
+          .order('created_at', { ascending: false })
+          .limit(10);
 
-      if (memoriesData) {
-        memories = memoriesData.map(m => `(${m.kind}) ${m.content}`);
+        if (memoriesError) {
+          console.log('Error fetching memories:', memoriesError);
+        } else if (memoriesData) {
+          memories = memoriesData.map(m => `(${m.kind}) ${m.content}`);
+        }
+      } catch (error) {
+        console.log('Memory fetch failed:', error);
+        // Continue without memories if fetch fails
       }
     }
 
     // Determine model based on presence of images
     const hasImages = imageUrls?.length > 0;
-    const model = hasImages ? 'gpt-4.1-2025-04-14' : 'gpt-5-2025-08-07';
+    // Use GPT-4.1 for both text and vision for now to avoid potential GPT-5 issues
+    const model = 'gpt-4.1-2025-04-14';
     
     console.log(`Using model: ${model} (${hasImages ? 'vision' : 'text-only'})`);
 
@@ -140,7 +150,7 @@ serve(async (req) => {
         model,
         messages,
         max_completion_tokens: 2000,
-        ...(hasImages ? { temperature: 0.6 } : {}), // Only add temperature for GPT-4.1 (vision)
+        temperature: 0.6, // Always include temperature for GPT-4.1
         response_format: { type: "json_object" }
       }),
     });
