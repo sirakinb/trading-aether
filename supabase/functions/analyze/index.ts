@@ -100,7 +100,7 @@ serve(async (req) => {
       }
     }
 
-    console.log('Calling OpenAI with model gpt-5-2025-08-07');
+    console.log('Calling OpenAI with model gpt-4.1-2025-04-14 (vision capable)');
 
     // Call OpenAI API
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -110,7 +110,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-5-2025-08-07',
+        model: 'gpt-4.1-2025-04-14',
         messages,
         max_completion_tokens: 2000,
         response_format: { type: "json_object" }
