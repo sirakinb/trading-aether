@@ -7,44 +7,42 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const SYSTEM_PROMPT = `You are an AI Trading Coach with deep expertise in charts, setups, market structure, risk, psychology, journaling, backtesting, and news impact.
+const buildSystemPrompt = (memories?: string[], requestAnalysis?: boolean) => {
+  let prompt = `You are an AI Trading Coach with deep expertise in markets, psychology, journaling, and risk.
 
-The user may share screenshots, stats, notes, news, or just general thoughts. Treat every message as part of an ongoing conversation.
+The user may share screenshots, stats, notes, news, or free-form thoughts. Treat every message as part of an ongoing conversation.
 
-Your role: act like a mentor. Give thoughtful, encouraging, and honest feedback that helps the user think clearly, improve discipline, and refine decision-making.
+Your role: act like a mentor. Respond naturally and conversationally. Provide insights, risks, scenarios, and checklists when relevant. Add coaching notes about psychology or performance if useful.
 
-When you respond:
+Never promise profit or certainty. If unclear, ask for clarification.`;
 
-Always keep a natural, conversational tone — like a coach talking to a trader.
+  if (memories && memories.length > 0) {
+    prompt += `\n\nKnown trader patterns/preferences:\n${memories.map(m => `- ${m}`).join('\n')}`;
+  }
 
-Provide insights and observations (what stands out, what looks strong).
+  if (requestAnalysis) {
+    prompt += `\n\nThe user has requested structured analysis. Please provide both narrative feedback AND structured analysis including confluences, risks, scenarios, and checklist.`;
+  }
 
-Point out risks and blind spots (technical, emotional, or market-related).
-
-Offer scenarios (bull/bear paths, invalidation if applicable).
-
-Share a checklist or next steps (3–5 actionable items).
-
-Add optional coaching notes — psychology reminders, performance reflections, mindset nudges.
-
-Be clear, practical, and explainable. Never promise certainty or profit. If inputs are unclear, ask for clarification.
-
-You should respond with a JSON object containing:
+  prompt += `\n\nYou should respond with a JSON object containing:
 {
   "narrative": "Main conversational feedback (always required)",
-  "confluences": ["Technical confluences or positive signals if any"],
-  "risks": ["Key risks or concerns to watch"],
+  "confluences": ["Technical confluences or positive signals if any"] (optional),
+  "risks": ["Key risks or concerns to watch"] (optional),
   "scenarios": {
     "bull": "Bullish scenario description",
     "bear": "Bearish scenario description", 
     "invalidation": "What would invalidate the current setup"
-  },
-  "checklist": ["3-5 actionable next steps"],
+  } (optional),
+  "checklist": ["3-5 actionable next steps"] (optional),
   "psychology_hint": "Optional mindset or psychology coaching note",
   "memory_hint": "Optional note about patterns or style observations"
 }
 
 End every response with: "Educational content — Not financial advice."`;
+
+  return prompt;
+};
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -54,7 +52,7 @@ serve(async (req) => {
 
   try {
     const start = Date.now();
-    const { imageUrls, contextText } = await req.json();
+    const { imageUrls, contextText, conversationId, requestAnalysis, useMemory } = await req.json();
 
     console.log('Analyze request received:', { 
       hasImages: !!imageUrls?.length, 
@@ -71,9 +69,38 @@ serve(async (req) => {
       throw new Error('OpenAI API key not configured');
     }
 
+    // Get user memories if enabled
+    let memories: string[] = [];
+    if (useMemory && conversationId) {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+      const supabase = createClient(supabaseUrl, supabaseKey);
+
+      const authHeader = req.headers.get('Authorization');
+      if (authHeader) {
+        supabase.auth.setAuth(authHeader.replace('Bearer ', ''));
+      }
+
+      const { data: memoriesData } = await supabase
+        .from('memories')
+        .select('kind, content')
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (memoriesData) {
+        memories = memoriesData.map(m => `(${m.kind}) ${m.content}`);
+      }
+    }
+
+    // Determine model based on presence of images
+    const hasImages = imageUrls?.length > 0;
+    const model = hasImages ? 'gpt-4.1-2025-04-14' : 'gpt-5-2025-08-07';
+    
+    console.log(`Using model: ${model} (${hasImages ? 'vision' : 'text-only'})`);
+
     // Build messages array
     const messages: any[] = [
-      { role: "system", content: SYSTEM_PROMPT },
+      { role: "system", content: buildSystemPrompt(memories, requestAnalysis) },
     ];
 
     // Add context text if provided
@@ -100,7 +127,7 @@ serve(async (req) => {
       }
     }
 
-    console.log('Calling OpenAI with model gpt-4.1-2025-04-14 (vision capable)');
+    console.log(`Calling OpenAI with model ${model}`);
 
     // Call OpenAI API
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -110,9 +137,10 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4.1-2025-04-14',
+        model,
         messages,
         max_completion_tokens: 2000,
+        temperature: 0.6,
         response_format: { type: "json_object" }
       }),
     });
