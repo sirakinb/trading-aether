@@ -6,6 +6,8 @@ import { TradingCard, TradingCardContent, TradingCardHeader, TradingCardTitle } 
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { useAudioRecorder } from "@/hooks/useAudioRecorder";
+import { VoiceRecorder } from "@/components/ui/voice-recorder";
 
 const analysisOptions = [
   {
@@ -40,7 +42,11 @@ export default function Chat() {
   const [isUploading, setIsUploading] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Audio recording hook
+  const { isRecording, startRecording, stopRecording, duration, error: recordingError } = useAudioRecorder();
 
   const validateFile = (file: File): boolean => {
     if (!file.type.startsWith('image/')) {
@@ -129,6 +135,69 @@ export default function Chat() {
     setUploadedImage(null);
     setIsAnalyzing(false);
   };
+
+  const handleVoiceRecording = async () => {
+    if (isRecording) {
+      setIsTranscribing(true);
+      try {
+        const audioUrl = await stopRecording();
+        if (audioUrl) {
+          // Call transcription edge function
+          const { data, error } = await supabase.functions.invoke('transcribe', {
+            body: { audioUrl }
+          });
+
+          if (error) {
+            throw error;
+          }
+
+          if (data?.text) {
+            // Append transcript to existing message
+            setMessage(prev => prev ? `${prev}\n\n${data.text}` : data.text);
+            
+            toast({
+              title: "Voice recorded",
+              description: `Transcribed ${Math.round(data.duration_ms / 1000)}s of audio`,
+            });
+          } else {
+            toast({
+              title: "No speech detected",
+              description: "Try speaking more clearly or closer to the microphone",
+              variant: "destructive",
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Transcription error:', error);
+        toast({
+          title: "Transcription failed",
+          description: "Failed to transcribe audio. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsTranscribing(false);
+      }
+    } else {
+      try {
+        await startRecording();
+      } catch (error) {
+        toast({
+          title: "Recording failed",
+          description: "Failed to start recording. Please check microphone permissions.",
+          variant: "destructive",
+        });
+      }
+    }
+  };
+
+  // Show recording error
+  if (recordingError) {
+    toast({
+      title: "Recording error",
+      description: recordingError,
+      variant: "destructive",
+    });
+  }
 
   return (
     <AppLayout 
@@ -294,9 +363,13 @@ export default function Chat() {
                       <Upload className="h-4 w-4" />
                     )}
                   </Button>
-                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0" disabled>
-                    <Mic className="h-4 w-4 opacity-50" />
-                  </Button>
+                  <VoiceRecorder
+                    isRecording={isRecording}
+                    isTranscribing={isTranscribing}
+                    duration={duration}
+                    onStartRecording={handleVoiceRecording}
+                    onStopRecording={handleVoiceRecording}
+                  />
                 </div>
               </div>
               <Button variant="premium" size="lg" className="self-end">
