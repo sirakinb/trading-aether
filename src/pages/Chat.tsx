@@ -52,8 +52,28 @@ const Chat = () => {
 
   const initializeConversation = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError) {
+        console.error('Auth error:', authError);
+        toast({
+          title: "Authentication Error",
+          description: "Please sign in to continue",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      if (!user) {
+        toast({
+          title: "Not authenticated",
+          description: "Please sign in to start a conversation",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      console.log('Creating conversation for user:', user.id);
 
       // Create a new conversation
       const { data: conversation, error } = await supabase
@@ -65,11 +85,20 @@ const Chat = () => {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error creating conversation:', error);
+        throw error;
+      }
 
+      console.log('Conversation created:', conversation);
       setConversationId(conversation.id);
     } catch (error) {
       console.error('Error initializing conversation:', error);
+      toast({
+        title: "Error",
+        description: "Failed to initialize conversation. Please try refreshing the page.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -147,11 +176,27 @@ const Chat = () => {
   };
 
   const saveMessage = async (role: 'user' | 'ai', text?: string, imageUrl?: string, analysis?: any) => {
-    if (!conversationId) return null;
+    if (!conversationId) {
+      console.error('No conversation ID available');
+      toast({
+        title: "Error",
+        description: "No active conversation. Please refresh the page.",
+        variant: "destructive",
+      });
+      return null;
+    }
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError) {
+        console.error('Auth error:', authError);
+        throw new Error('Authentication failed');
+      }
+      
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
 
       const messageData: any = {
         conversation_id: conversationId,
@@ -184,6 +229,13 @@ const Chat = () => {
     } catch (error) {
       console.error('Error saving message:', error);
       
+      // Show user-friendly error message
+      toast({
+        title: "Error saving message",
+        description: "Please check your connection and try again.",
+        variant: "destructive",
+      });
+      
       // If database save fails, still add to local state so user sees the response
       if (role === 'ai' && text) {
         const tempMessage: Message = {
@@ -204,8 +256,12 @@ const Chat = () => {
 
   const saveMemory = async (content: string, kind: 'preference' | 'pattern' | 'note') => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError || !user) {
+        console.error('Auth error or no user for memory save:', authError);
+        return;
+      }
 
       await supabase
         .from('memories')
