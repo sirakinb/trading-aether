@@ -96,116 +96,125 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
                   </div>
                 )}
 
-                {/* Analysis cards */}
-                <div className="space-y-3">
-                  {/* Confluences */}
-                  {message.analysis?.confluences && message.analysis.confluences.length > 0 && (
-                    <Card className="p-3 bg-green-50 border-green-200">
-                      <div className="flex items-center gap-2 mb-2">
-                        <TrendingUp className="w-4 h-4 text-green-600" />
-                        <h4 className="font-medium text-green-800">Positive Signals</h4>
-                      </div>
-                      <ul className="space-y-1">
-                        {message.analysis.confluences.map((item, idx) => (
-                          <li key={idx} className="text-sm text-green-700 flex items-start gap-2">
-                            <span className="w-1 h-1 bg-green-600 rounded-full mt-2 flex-shrink-0" />
-                            {item}
-                          </li>
-                        ))}
-                      </ul>
-                    </Card>
-                  )}
+                {/* Analysis cards - only show if analysis data exists */}
+                {message.analysis && (
+                  message.analysis.confluences || 
+                  message.analysis.risks || 
+                  message.analysis.scenarios || 
+                  message.analysis.checklist || 
+                  message.analysis.psychology_hint || 
+                  message.analysis.memory_hint
+                ) && (
+                  <div className="space-y-3">
+                    {/* Confluences */}
+                    {message.analysis?.confluences && message.analysis.confluences.length > 0 && (
+                      <Card className="p-3 bg-green-50 border-green-200">
+                        <div className="flex items-center gap-2 mb-2">
+                          <TrendingUp className="w-4 h-4 text-green-600" />
+                          <h4 className="font-medium text-green-800">Positive Signals</h4>
+                        </div>
+                        <ul className="space-y-1">
+                          {message.analysis.confluences.map((item, idx) => (
+                            <li key={idx} className="text-sm text-green-700 flex items-start gap-2">
+                              <span className="w-1 h-1 bg-green-600 rounded-full mt-2 flex-shrink-0" />
+                              {item}
+                            </li>
+                          ))}
+                        </ul>
+                      </Card>
+                    )}
 
-                  {/* Risks */}
-                  {message.analysis?.risks && message.analysis.risks.length > 0 && (
-                    <Card className="p-3 bg-red-50 border-red-200">
-                      <div className="flex items-center gap-2 mb-2">
-                        <AlertTriangle className="w-4 h-4 text-red-600" />
-                        <h4 className="font-medium text-red-800">Risks & Concerns</h4>
-                      </div>
-                      <ul className="space-y-1">
-                        {message.analysis.risks.map((item, idx) => (
-                          <li key={idx} className="text-sm text-red-700 flex items-start gap-2">
-                            <span className="w-1 h-1 bg-red-600 rounded-full mt-2 flex-shrink-0" />
-                            {item}
-                          </li>
-                        ))}
-                      </ul>
-                    </Card>
-                  )}
+                    {/* Risks */}
+                    {message.analysis?.risks && message.analysis.risks.length > 0 && (
+                      <Card className="p-3 bg-red-50 border-red-200">
+                        <div className="flex items-center gap-2 mb-2">
+                          <AlertTriangle className="w-4 h-4 text-red-600" />
+                          <h4 className="font-medium text-red-800">Risks & Concerns</h4>
+                        </div>
+                        <ul className="space-y-1">
+                          {message.analysis.risks.map((item, idx) => (
+                            <li key={idx} className="text-sm text-red-700 flex items-start gap-2">
+                              <span className="w-1 h-1 bg-red-600 rounded-full mt-2 flex-shrink-0" />
+                              {item}
+                            </li>
+                          ))}
+                        </ul>
+                      </Card>
+                    )}
 
-                  {/* Scenarios */}
-                  {message.analysis?.scenarios && (
-                    <Card className="p-3 bg-blue-50 border-blue-200">
-                      <div className="flex items-center gap-2 mb-2">
-                        <TrendingUp className="w-4 h-4 text-blue-600" />
-                        <h4 className="font-medium text-blue-800">Market Scenarios</h4>
-                      </div>
-                      <div className="space-y-2">
-                        {message.analysis.scenarios.bull && (
-                          <div>
-                            <Badge variant="outline" className="text-green-700 border-green-300 mb-1">Bull Case</Badge>
-                            <p className="text-sm text-blue-700">{message.analysis.scenarios.bull}</p>
-                          </div>
-                        )}
-                        {message.analysis.scenarios.bear && (
-                          <div>
-                            <Badge variant="outline" className="text-red-700 border-red-300 mb-1">Bear Case</Badge>
-                            <p className="text-sm text-blue-700">{message.analysis.scenarios.bear}</p>
-                          </div>
-                        )}
-                        {message.analysis.scenarios.invalidation && (
-                          <div>
-                            <Badge variant="outline" className="text-orange-700 border-orange-300 mb-1">Invalidation</Badge>
-                            <p className="text-sm text-blue-700">{message.analysis.scenarios.invalidation}</p>
-                          </div>
-                        )}
-                      </div>
-                    </Card>
-                  )}
+                    {/* Scenarios */}
+                    {message.analysis?.scenarios && (
+                      <Card className="p-3 bg-blue-50 border-blue-200">
+                        <div className="flex items-center gap-2 mb-2">
+                          <TrendingUp className="w-4 h-4 text-blue-600" />
+                          <h4 className="font-medium text-blue-800">Market Scenarios</h4>
+                        </div>
+                        <div className="space-y-2">
+                          {message.analysis.scenarios.bull && (
+                            <div>
+                              <Badge variant="outline" className="text-green-700 border-green-300 mb-1">Bull Case</Badge>
+                              <p className="text-sm text-blue-700">{message.analysis.scenarios.bull}</p>
+                            </div>
+                          )}
+                          {message.analysis.scenarios.bear && (
+                            <div>
+                              <Badge variant="outline" className="text-red-700 border-red-300 mb-1">Bear Case</Badge>
+                              <p className="text-sm text-blue-700">{message.analysis.scenarios.bear}</p>
+                            </div>
+                          )}
+                          {message.analysis.scenarios.invalidation && (
+                            <div>
+                              <Badge variant="outline" className="text-orange-700 border-orange-300 mb-1">Invalidation</Badge>
+                              <p className="text-sm text-blue-700">{message.analysis.scenarios.invalidation}</p>
+                            </div>
+                          )}
+                        </div>
+                      </Card>
+                    )}
 
-                  {/* Checklist */}
-                  {message.analysis?.checklist && message.analysis.checklist.length > 0 && (
-                    <Card className="p-3 bg-purple-50 border-purple-200">
-                      <div className="flex items-center gap-2 mb-2">
-                        <CheckSquare className="w-4 h-4 text-purple-600" />
-                        <h4 className="font-medium text-purple-800">Action Items</h4>
-                      </div>
-                      <ul className="space-y-1">
-                        {message.analysis.checklist.map((item, idx) => (
-                          <li key={idx} className="text-sm text-purple-700 flex items-start gap-2">
-                            <span className="w-1 h-1 bg-purple-600 rounded-full mt-2 flex-shrink-0" />
-                            {item}
-                          </li>
-                        ))}
-                      </ul>
-                    </Card>
-                  )}
+                    {/* Checklist */}
+                    {message.analysis?.checklist && message.analysis.checklist.length > 0 && (
+                      <Card className="p-3 bg-purple-50 border-purple-200">
+                        <div className="flex items-center gap-2 mb-2">
+                          <CheckSquare className="w-4 h-4 text-purple-600" />
+                          <h4 className="font-medium text-purple-800">Action Items</h4>
+                        </div>
+                        <ul className="space-y-1">
+                          {message.analysis.checklist.map((item, idx) => (
+                            <li key={idx} className="text-sm text-purple-700 flex items-start gap-2">
+                              <span className="w-1 h-1 bg-purple-600 rounded-full mt-2 flex-shrink-0" />
+                              {item}
+                            </li>
+                          ))}
+                        </ul>
+                      </Card>
+                    )}
 
-                  {/* Psychology hint */}
-                  {message.analysis?.psychology_hint && (
-                    <Card className="p-3 bg-amber-50 border-amber-200">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Brain className="w-4 h-4 text-amber-600" />
-                        <h4 className="font-medium text-amber-800">Psychology Note</h4>
-                      </div>
-                      <p className="text-sm text-amber-700">{message.analysis.psychology_hint}</p>
-                    </Card>
-                  )}
+                    {/* Psychology hint */}
+                    {message.analysis?.psychology_hint && (
+                      <Card className="p-3 bg-amber-50 border-amber-200">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Brain className="w-4 h-4 text-amber-600" />
+                          <h4 className="font-medium text-amber-800">Psychology Note</h4>
+                        </div>
+                        <p className="text-sm text-amber-700">{message.analysis.psychology_hint}</p>
+                      </Card>
+                    )}
 
-                  {/* Memory hint */}
-                  {message.analysis?.memory_hint && (
-                    <Card className="p-3 bg-slate-50 border-slate-200">
-                      <div className="flex items-center gap-2 mb-2">
-                        <BookOpen className="w-4 h-4 text-slate-600" />
-                        <h4 className="font-medium text-slate-800">Pattern Observation</h4>
-                      </div>
-                      <p className="text-sm text-slate-700">{message.analysis.memory_hint}</p>
-                    </Card>
-                  )}
-                </div>
+                    {/* Memory hint */}
+                    {message.analysis?.memory_hint && (
+                      <Card className="p-3 bg-slate-50 border-slate-200">
+                        <div className="flex items-center gap-2 mb-2">
+                          <BookOpen className="w-4 h-4 text-slate-600" />
+                          <h4 className="font-medium text-slate-800">Pattern Observation</h4>
+                        </div>
+                        <p className="text-sm text-slate-700">{message.analysis.memory_hint}</p>
+                      </Card>
+                    )}
+                  </div>
+                )}
 
-                {/* Save Trade button */}
+                {/* Save Trade button - only show if analysis cards are present */}
                 {message.analysis && (message.analysis.confluences || message.analysis.risks || message.analysis.scenarios) && (
                   <div className="pt-2 border-t">
                     <Button 

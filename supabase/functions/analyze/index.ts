@@ -8,23 +8,21 @@ const corsHeaders = {
 };
 
 const buildSystemPrompt = (memories?: string[], requestAnalysis?: boolean) => {
-  let prompt = `You are an AI Trading Coach with deep expertise in markets, psychology, journaling, and risk.
+  if (requestAnalysis) {
+    // Full analysis mode with structured response
+    let prompt = `You are an experienced trading coach and mentor. Respond in a natural, conversational way like you're chatting with a fellow trader over coffee.
 
 The user may share screenshots, stats, notes, news, or free-form thoughts. Treat every message as part of an ongoing conversation.
 
-Your role: act like a mentor. Respond naturally and conversationally. Provide insights, risks, scenarios, and checklists when relevant. Add coaching notes about psychology or performance if useful.
+Your role: act like a seasoned mentor who's been in the markets for years. Be direct, honest, and supportive. Share insights, point out risks, and discuss scenarios naturally. Add coaching notes about psychology or performance when it feels right.
 
 Never promise profit or certainty. If unclear, ask for clarification.`;
 
-  if (memories && memories.length > 0) {
-    prompt += `\n\nKnown trader patterns/preferences:\n${memories.map(m => `- ${m}`).join('\n')}`;
-  }
+    if (memories && memories.length > 0) {
+      prompt += `\n\nWhat I know about your trading style:\n${memories.map(m => `- ${m}`).join('\n')}`;
+    }
 
-  if (requestAnalysis) {
-    prompt += `\n\nThe user has requested structured analysis. Please provide both narrative feedback AND structured analysis including confluences, risks, scenarios, and checklist.`;
-  }
-
-  prompt += `\n\nYou should respond with a JSON object containing:
+    prompt += `\n\nProvide both a natural conversational response AND structured analysis. Respond with a JSON object:
 {
   "narrative": "Main conversational feedback (always required)",
   "confluences": ["Technical confluences or positive signals if any"] (optional),
@@ -37,9 +35,25 @@ Never promise profit or certainty. If unclear, ask for clarification.`;
   "checklist": ["3-5 actionable next steps"] (optional),
   "psychology_hint": "Optional mindset or psychology coaching note",
   "memory_hint": "Optional note about patterns or style observations"
-}
+}`;
+  } else {
+    // Quick chat mode - conversational only
+    let prompt = `You are an experienced trading coach and mentor. Respond in a natural, conversational way like you're chatting with a fellow trader.
 
-End every response with: "Educational content — Not financial advice."`;
+Be direct, friendly, and supportive. Keep responses concise but helpful. Share quick insights or ask follow-up questions. Act like you're having a casual conversation about trading.
+
+Never promise profit or certainty.`;
+
+    if (memories && memories.length > 0) {
+      prompt += `\n\nWhat I know about your trading style:\n${memories.map(m => `- ${m}`).join('\n')}`;
+    }
+
+    prompt += `\n\nRespond with a JSON object containing only:
+{
+  "narrative": "Natural conversational response",
+  "memory_hint": "Optional note about patterns or style observations"
+}`;
+  }
 
   return prompt;
 };
@@ -166,7 +180,7 @@ serve(async (req) => {
       console.warn('Failed to parse JSON response, using fallback structure');
       // Fallback if model replies conversationally instead of JSON
       feedback = {
-        narrative: rawContent + "\n\nEducational content — Not financial advice.",
+        narrative: rawContent,
         confluences: [],
         risks: [],
         scenarios: { bull: "", bear: "", invalidation: "" },
@@ -174,9 +188,11 @@ serve(async (req) => {
       };
     }
 
-    // Ensure narrative always ends with disclaimer
-    if (feedback.narrative && !feedback.narrative.includes("Educational content — Not financial advice")) {
-      feedback.narrative += "\n\nEducational content — Not financial advice.";
+    // Don't add disclaimer anymore - removed per user request
+    
+    // Ensure we have at least a narrative response
+    if (!feedback.narrative) {
+      feedback.narrative = rawContent;
     }
 
     const latency_ms = Date.now() - start;
@@ -191,7 +207,7 @@ serve(async (req) => {
     return new Response(JSON.stringify({ 
       error: error.message,
       feedback: {
-        narrative: "I apologize, but I encountered an error while analyzing your request. Please try again or contact support if the issue persists.\n\nEducational content — Not financial advice.",
+        narrative: "I apologize, but I encountered an error while analyzing your request. Please try again or contact support if the issue persists.",
         confluences: [],
         risks: ["Technical analysis temporarily unavailable"],
         scenarios: { bull: "", bear: "", invalidation: "" },
