@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mail, X, Loader2 } from "lucide-react";
+import { Mail, X, Loader2, Eye, EyeOff, User } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
 interface AuthModalProps {
@@ -13,34 +14,65 @@ interface AuthModalProps {
 
 export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [emailSent, setEmailSent] = useState(false);
-  const { signInWithEmail } = useAuth();
+  const [showPassword, setShowPassword] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false);
+  const { signUp, signIn } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email) return;
+    if (!email || !password) return;
+
+    if (isSignUp && password !== confirmPassword) {
+      toast.error("Passwords don't match");
+      return;
+    }
+
+    if (password.length < 6) {
+      toast.error("Password must be at least 6 characters");
+      return;
+    }
 
     setIsLoading(true);
-    const { error } = await signInWithEmail(email);
     
-    if (error) {
-      toast.error("Failed to send magic link", {
-        description: error.message
-      });
-    } else {
-      setEmailSent(true);
-      toast.success("Magic link sent!", {
-        description: "Check your email for the login link"
-      });
+    try {
+      if (isSignUp) {
+        const { error } = await signUp(email, password);
+        if (error) {
+          toast.error("Failed to sign up", {
+            description: error.message
+          });
+        } else {
+          toast.success("Account created successfully!");
+          onClose();
+        }
+      } else {
+        const { error } = await signIn(email, password);
+        if (error) {
+          toast.error("Failed to sign in", {
+            description: error.message
+          });
+        } else {
+          toast.success("Signed in successfully!");
+          onClose();
+        }
+      }
+    } catch (error) {
+      toast.error("An error occurred");
     }
+    
     setIsLoading(false);
   };
 
   const handleClose = () => {
     setEmail("");
-    setEmailSent(false);
+    setPassword("");
+    setConfirmPassword("");
     setIsLoading(false);
+    setShowPassword(false);
+    setIsSignUp(false);
     onClose();
   };
 
@@ -76,62 +108,102 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
           <div className="space-y-6">
             <div className="text-center space-y-2">
               <div className="h-12 w-12 bg-primary/10 rounded-lg flex items-center justify-center mx-auto">
-                <Mail className="h-6 w-6 text-primary" />
+                <User className="h-6 w-6 text-primary" />
               </div>
-              <h2 className="text-2xl font-semibold">Welcome to TradeCopilot</h2>
+              <h2 className="text-2xl font-semibold">
+                {isSignUp ? "Create Account" : "Welcome Back"}
+              </h2>
               <p className="text-muted-foreground">
-                {emailSent 
-                  ? "Check your email for the magic link" 
-                  : "Sign in with your email to continue"
+                {isSignUp 
+                  ? "Sign up to start using TradeCopilot"
+                  : "Sign in to your TradeCopilot account"
                 }
               </p>
             </div>
 
-            {!emailSent ? (
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="Enter your email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="w-full"
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="password">Password</Label>
+                <div className="relative">
                   <Input
-                    type="email"
-                    placeholder="Enter your email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    className="w-full pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {isSignUp && (
+                <div>
+                  <Label htmlFor="confirmPassword">Confirm Password</Label>
+                  <Input
+                    id="confirmPassword"
+                    type="password"
+                    placeholder="Confirm your password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
                     required
                     className="w-full"
                   />
                 </div>
-                
-                <Button 
-                  type="submit" 
-                  className="w-full" 
-                  disabled={isLoading || !email}
+              )}
+              
+              <Button 
+                type="submit" 
+                className="w-full" 
+                disabled={isLoading || !email || !password || (isSignUp && !confirmPassword)}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    {isSignUp ? "Creating account..." : "Signing in..."}
+                  </>
+                ) : (
+                  isSignUp ? "Create Account" : "Sign In"
+                )}
+              </Button>
+
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => setIsSignUp(!isSignUp)}
+                  className="text-sm text-muted-foreground hover:text-primary"
                 >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Sending magic link...
-                    </>
-                  ) : (
-                    <>
-                      <Mail className="h-4 w-4 mr-2" />
-                      Send magic link
-                    </>
-                  )}
-                </Button>
-              </form>
-            ) : (
-              <div className="text-center space-y-4">
-                <div className="h-16 w-16 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto">
-                  <Mail className="h-8 w-8 text-green-600 dark:text-green-400" />
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  We've sent a magic link to <strong>{email}</strong>. 
-                  Click the link in your email to sign in.
-                </p>
-                <Button variant="outline" onClick={handleClose} className="w-full">
-                  Close
-                </Button>
+                  {isSignUp 
+                    ? "Already have an account? Sign in"
+                    : "Don't have an account? Sign up"
+                  }
+                </button>
               </div>
-            )}
+            </form>
           </div>
         </motion.div>
       </div>
