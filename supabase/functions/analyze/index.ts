@@ -91,36 +91,75 @@ serve(async (req) => {
     
     console.log('OpenAI API key found:', !!openAIApiKey);
 
+    // Get conversation history for context
+    let conversationHistory: any[] = [];
+    if (conversationId) {
+      try {
+        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+        const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+        const supabase = createClient(supabaseUrl, supabaseKey);
+
+        console.log('Fetching conversation history for:', conversationId);
+
+        const { data: messages, error } = await supabase
+          .from('messages')
+          .select('role, text, image_url, created_at')
+          .eq('conversation_id', conversationId)
+          .order('created_at', { ascending: true })
+          .limit(10); // Get last 10 messages for context
+
+        if (error) {
+          console.log('Error fetching conversation history:', error);
+        } else if (messages) {
+          conversationHistory = messages;
+          console.log(`Found ${messages.length} previous messages in conversation`);
+        }
+      } catch (error) {
+        console.log('Failed to fetch conversation history:', error);
+      }
+    }
+
     // Use simple models for now
     const hasImages = imageUrls?.length > 0;
     const model = hasImages ? 'gpt-4o' : 'gpt-4o-mini';
     
     console.log(`Using model: ${model} (${hasImages ? 'vision' : 'text-only'})`);
-    // Build simple system prompt
+    // Build system prompt
     const systemPrompt = requestAnalysis 
-      ? `You are an experienced trading coach. Respond naturally and conversationally like you're chatting with a fellow trader. Provide both narrative feedback AND structured analysis. Respond with a JSON object:
+      ? `You are an experienced trading coach having an ongoing conversation with a trader. You remember the context of your previous discussions. Respond naturally and conversationally like you're continuing a chat with a fellow trader. Provide both narrative feedback AND structured analysis. Respond with a JSON object:
 {
-  "narrative": "Natural conversational response",
+  "narrative": "Natural conversational response that references previous context when relevant",
   "confluences": ["Positive signals if any"],
   "risks": ["Key risks if any"], 
   "scenarios": {"bull": "Bullish scenario", "bear": "Bearish scenario", "invalidation": "Invalidation level"},
   "checklist": ["Action items"],
   "psychology_hint": "Mindset note"
 }`
-      : `You are an experienced trading coach. Respond naturally and conversationally like you're chatting with a fellow trader. Keep it concise. Respond with JSON: {"narrative": "Natural response"}`;
+      : `You are an experienced trading coach having an ongoing conversation with a trader. You remember the context of your previous discussions. Respond naturally and conversationally like you're continuing a chat with a fellow trader. Keep it concise but reference previous context when relevant. Respond with JSON: {"narrative": "Natural conversational response"}`;
 
-    // Build messages
-    const messages = [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: contextText || "Please analyze this trading chart" }
-    ];
+    // Build messages array starting with system prompt
+    const messages = [{ role: "system", content: systemPrompt }];
 
-    // Add images if provided
+    // Add conversation history for context
+    if (conversationHistory.length > 0) {
+      console.log('Adding conversation history to context');
+      conversationHistory.forEach(msg => {
+        if (msg.text) {
+          messages.push({
+            role: msg.role === 'ai' ? 'assistant' : msg.role,
+            content: msg.text
+          });
+        }
+      });
+    }
+
+    // Add current message
+    const currentMessage = contextText || "Please analyze this trading chart";
     if (imageUrls?.length) {
-      messages[1] = {
+      messages.push({
         role: "user",
         content: [
-          { type: "text", text: contextText || "Please analyze this trading chart" },
+          { type: "text", text: currentMessage },
           { 
             type: "image_url", 
             image_url: { 
@@ -129,7 +168,9 @@ serve(async (req) => {
             }
           }
         ]
-      };
+      });
+    } else {
+      messages.push({ role: "user", content: currentMessage });
     }
 
     console.log(`Calling OpenAI with model ${model}`);
