@@ -14,6 +14,7 @@ import {
 import { AppLayout } from "@/components/layout/app-layout";
 import { TradingCard, TradingCardContent, TradingCardHeader, TradingCardTitle } from "@/components/ui/trading-card";
 import { Button } from "@/components/ui/button";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 
 // Mock data for trade history
 const trades = [
@@ -136,10 +137,11 @@ export default function History() {
   };
 
   return (
-    <AppLayout 
-      title="Trade History" 
-      subtitle="247 trades analyzed"
-    >
+    <ProtectedRoute>
+      <AppLayout 
+        title="Trade History" 
+        subtitle="247 trades analyzed"
+      >
       <div className="p-6 space-y-6">
         {/* Stats Overview */}
         <motion.div
@@ -332,5 +334,6 @@ export default function History() {
         </motion.div>
       </div>
     </AppLayout>
+    </ProtectedRoute>
   );
 }

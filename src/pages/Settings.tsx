@@ -15,6 +15,7 @@ import {
 import { AppLayout } from "@/components/layout/app-layout";
 import { TradingCard, TradingCardContent, TradingCardHeader, TradingCardTitle } from "@/components/ui/trading-card";
 import { Button } from "@/components/ui/button";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 
 export default function Settings() {
   const [apiKeyVisible, setApiKeyVisible] = useState(false);
@@ -207,10 +208,11 @@ export default function Settings() {
   };
 
   return (
-    <AppLayout 
-      title="Settings" 
-      subtitle="Preferences & memory"
-    >
+    <ProtectedRoute>
+      <AppLayout 
+        title="Settings" 
+        subtitle="Preferences & memory"
+      >
       <div className="p-6 max-w-4xl mx-auto space-y-6">
         {settingSections.map((section, sectionIndex) => (
           <motion.div
@@ -263,5 +265,6 @@ export default function Settings() {
         </motion.div>
       </div>
     </AppLayout>
+    </ProtectedRoute>
   );
 }
