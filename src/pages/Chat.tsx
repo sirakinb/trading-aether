@@ -208,39 +208,60 @@ const Chat = () => {
       // Save user message
       await saveMessage('user', text, imageUrl);
 
-      // Call analysis function
-      const { data, error } = await supabase.functions.invoke('analyze', {
-        body: { 
-          imageUrls: imageUrl ? [imageUrl] : undefined,
-          contextText: text.trim() || undefined,
-          conversationId,
-          requestAnalysis,
-          useMemory,
+      // Call analysis function with retry logic
+      let retryCount = 0;
+      const maxRetries = 2;
+      let lastError: any;
+
+      while (retryCount <= maxRetries) {
+        try {
+          const { data, error } = await supabase.functions.invoke('analyze', {
+            body: { 
+              imageUrls: imageUrl ? [imageUrl] : undefined,
+              contextText: text.trim() || undefined,
+              conversationId,
+              requestAnalysis,
+              useMemory,
+            }
+          });
+
+          if (error) throw error;
+
+          const analysis = data.feedback;
+
+          // Save AI response
+          await saveMessage('assistant', analysis.narrative, undefined, analysis);
+
+          // Extract and save memories
+          if (analysis.memory_hint) {
+            await saveMemory(analysis.memory_hint, 'note');
+          }
+
+          toast({
+            title: "Response received",
+            description: "AI coach has analyzed your message",
+          });
+
+          return; // Success, exit the function
+        } catch (error) {
+          lastError = error;
+          retryCount++;
+          
+          if (retryCount <= maxRetries) {
+            console.log(`Attempt ${retryCount} failed, retrying...`);
+            await new Promise(resolve => setTimeout(resolve, 1000 * retryCount)); // Exponential backoff
+          }
         }
-      });
-
-      if (error) throw error;
-
-      const analysis = data.feedback;
-
-      // Save AI response
-      await saveMessage('assistant', analysis.narrative, undefined, analysis);
-
-      // Extract and save memories
-      if (analysis.memory_hint) {
-        await saveMemory(analysis.memory_hint, 'note');
       }
 
-      toast({
-        title: "Response received",
-        description: "AI coach has analyzed your message",
-      });
+      // If we get here, all retries failed
+      throw lastError;
 
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('Error sending message after retries:', error);
       toast({
-        title: "Error",
-        description: "Failed to send message. Please try again.",
+        title: "Error", 
+        description: "Failed to send message after 3 attempts. Please check your connection and try again.",
         variant: "destructive",
       });
     } finally {
