@@ -74,15 +74,8 @@ serve(async (req) => {
     if (useMemory && conversationId) {
       try {
         const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-        const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+        const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
         const supabase = createClient(supabaseUrl, supabaseKey);
-
-        const authHeader = req.headers.get('Authorization');
-        if (authHeader) {
-          // Set the authorization header properly
-          supabase.rest.headers['Authorization'] = authHeader;
-          supabase.realtime.headers['Authorization'] = authHeader;
-        }
 
         const { data: memoriesData, error: memoriesError } = await supabase
           .from('memories')
