@@ -21,7 +21,7 @@ interface AnalysisResult {
 
 interface Message {
   id: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'ai';
   text?: string;
   image_url?: string;
   voice_url?: string;
@@ -85,7 +85,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
             )}
 
             {/* AI message content */}
-            {message.role === 'assistant' && (
+            {message.role === 'ai' && (
               <div className="space-y-4">
                 {/* Main narrative */}
                 {message.analysis?.narrative && (

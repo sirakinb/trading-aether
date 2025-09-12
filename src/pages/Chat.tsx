@@ -12,7 +12,7 @@ import { ChatComposer } from "@/components/chat/ChatComposer";
 
 interface Message {
   id: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'ai';
   text?: string;
   image_url?: string;
   voice_url?: string;
@@ -146,19 +146,21 @@ const Chat = () => {
     }
   };
 
-  const saveMessage = async (role: 'user' | 'assistant', text?: string, imageUrl?: string, analysis?: any) => {
+  const saveMessage = async (role: 'user' | 'ai', text?: string, imageUrl?: string, analysis?: any) => {
     if (!conversationId) return null;
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      const messageData = {
+      const messageData: any = {
         conversation_id: conversationId,
         role,
         text: text || null,
         image_url: imageUrl || null,
       };
+
+      console.log('Saving message data:', messageData);
 
       const { data: message, error } = await supabase
         .from('messages')
@@ -166,11 +168,14 @@ const Chat = () => {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Database error:', error);
+        throw error;
+      }
 
       const newMessage: Message = {
         ...message,
-        role: message.role as 'user' | 'assistant',
+        role: message.role as 'user' | 'ai',
         analysis,
       };
 
@@ -178,6 +183,21 @@ const Chat = () => {
       return message;
     } catch (error) {
       console.error('Error saving message:', error);
+      
+      // If database save fails, still add to local state so user sees the response
+      if (role === 'ai' && text) {
+        const tempMessage: Message = {
+          id: Date.now().toString(),
+          conversation_id: conversationId,
+          role,
+          text,
+          image_url: imageUrl,
+          analysis,
+          created_at: new Date().toISOString(),
+        };
+        setMessages(prev => [...prev, tempMessage]);
+      }
+      
       return null;
     }
   };
@@ -230,7 +250,7 @@ const Chat = () => {
           const analysis = data.feedback;
 
           // Save AI response
-          await saveMessage('assistant', analysis.narrative, undefined, analysis);
+          await saveMessage('ai', analysis.narrative, undefined, analysis);
 
           // Extract and save memories
           if (analysis.memory_hint) {
