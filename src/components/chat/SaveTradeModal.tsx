@@ -34,6 +34,8 @@ interface SaveTradeModalProps {
   onClose: () => void;
   analysis: AnalysisResult;
   imageUrl?: string;
+  conversationId?: string;
+  messageId?: string;
   onSave: () => void;
 }
 
@@ -42,6 +44,8 @@ export const SaveTradeModal: React.FC<SaveTradeModalProps> = ({
   onClose,
   analysis,
   imageUrl,
+  conversationId,
+  messageId,
   onSave,
 }) => {
   const { toast } = useToast();
@@ -55,6 +59,8 @@ export const SaveTradeModal: React.FC<SaveTradeModalProps> = ({
   const [tags, setTags] = useState<string[]>([]);
   const [notes, setNotes] = useState('');
   const [newTag, setNewTag] = useState('');
+  const [riskReward, setRiskReward] = useState('');
+  const [outcome, setOutcome] = useState<'unknown' | 'win' | 'loss'>('unknown');
 
   // Extract data from analysis
   const summary = analysis.narrative.split('\n')[0].substring(0, 100) + '...';
@@ -80,7 +86,7 @@ export const SaveTradeModal: React.FC<SaveTradeModalProps> = ({
     setTimeframes(timeframes.filter(tf => tf !== timeframe));
   };
 
-  const saveTrade = async (addOutcome: boolean = false) => {
+  const saveTrade = async (setOutcomeNow: boolean = false) => {
     if (!instrument || !direction) {
       toast({
         title: "Missing Fields",
@@ -95,15 +101,27 @@ export const SaveTradeModal: React.FC<SaveTradeModalProps> = ({
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
+      // Parse R:R ratio if provided
+      let rrNumeric = null;
+      if (riskReward && riskReward.trim()) {
+        const parsed = parseFloat(riskReward);
+        if (!isNaN(parsed) && parsed > 0) {
+          rrNumeric = parsed;
+        }
+      }
+
       const tradeData = {
         user_id: user.id,
+        conversation_id: conversationId || null,
+        message_id: messageId || null,
         instrument,
         direction,
         entry_plan: entryPlan || null,
         timeframes: timeframes.length > 0 ? timeframes : null,
         tags: tags.length > 0 ? tags : null,
         notes: notes || null,
-        outcome: 'unknown' as const,
+        outcome: setOutcomeNow ? outcome : 'unknown' as const,
+        rr_numeric: rrNumeric,
       };
 
       const { error } = await supabase
@@ -114,7 +132,7 @@ export const SaveTradeModal: React.FC<SaveTradeModalProps> = ({
 
       toast({
         title: "Trade Saved",
-        description: addOutcome ? "Trade saved! You can add the outcome later." : "Trade saved successfully!",
+        description: setOutcomeNow ? "Trade saved with outcome!" : "Trade saved! You can add the outcome later.",
       });
 
       onSave();
@@ -175,6 +193,35 @@ export const SaveTradeModal: React.FC<SaveTradeModalProps> = ({
                 <SelectContent>
                   <SelectItem value="long">Long</SelectItem>
                   <SelectItem value="short">Short</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="riskReward">Risk:Reward Ratio</Label>
+              <Input
+                id="riskReward"
+                value={riskReward}
+                onChange={(e) => setRiskReward(e.target.value)}
+                placeholder="e.g., 2.5 (for 1:2.5)"
+                type="number"
+                step="0.1"
+                min="0"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="outcome">Trade Outcome</Label>
+              <Select value={outcome} onValueChange={(value) => setOutcome(value as 'unknown' | 'win' | 'loss')}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select outcome" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unknown">Pending</SelectItem>
+                  <SelectItem value="win">Win</SelectItem>
+                  <SelectItem value="loss">Loss</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -261,17 +308,17 @@ export const SaveTradeModal: React.FC<SaveTradeModalProps> = ({
             <Button 
               onClick={() => saveTrade(false)}
               disabled={isLoading}
+              variant="outline"
               className="flex-1"
             >
-              Save
+              Save as Pending
             </Button>
             <Button 
               onClick={() => saveTrade(true)}
               disabled={isLoading}
-              variant="outline"
               className="flex-1"
             >
-              Save & Add Outcome Later
+              Save with Outcome
             </Button>
           </div>
         </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { 
@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
 
 interface SidebarProps {
   className?: string;
@@ -39,12 +40,57 @@ const navigation = [
   },
 ];
 
+interface RecentAnalysis {
+  id: string;
+  instrument: string;
+  narrative: string;
+  created_at: string;
+}
+
 export function Sidebar({ className }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const [recentAnalyses, setRecentAnalyses] = useState<RecentAnalysis[]>([]);
   const location = useLocation();
   const currentPath = location.pathname;
 
   const isActive = (path: string) => currentPath === path;
+
+  useEffect(() => {
+    loadRecentAnalyses();
+  }, []);
+
+  const loadRecentAnalyses = async () => {
+    try {
+      const { data: messages, error } = await supabase
+        .from('messages')
+        .select('id, text, created_at')
+        .eq('role', 'ai')
+        .not('text', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(3);
+
+      if (error) throw error;
+
+      if (messages) {
+        const analyses: RecentAnalysis[] = messages.map(msg => {
+          // Try to extract instrument from the text
+          const text = msg.text || '';
+          const instrumentMatch = text.match(/\b([A-Z]{2,6}USD|[A-Z]{3,6}|SPY|QQQ|BTC|ETH)\b/);
+          const instrument = instrumentMatch ? instrumentMatch[0] : 'Analysis';
+          
+          return {
+            id: msg.id,
+            instrument,
+            narrative: text.length > 60 ? text.substring(0, 60) + '...' : text,
+            created_at: msg.created_at,
+          };
+        });
+        setRecentAnalyses(analyses);
+      }
+    } catch (error) {
+      console.error('Error loading recent analyses:', error);
+    }
+  };
 
   return (
     <motion.div 
@@ -133,21 +179,27 @@ export function Sidebar({ className }: SidebarProps) {
             Recent Analysis
           </h3>
           <div className="space-y-2 text-xs">
-            <div className="p-2 rounded-lg bg-sidebar-accent/50">
-              <div className="font-medium text-sidebar-foreground">EURUSD Analysis</div>
-              <div className="text-sidebar-foreground/60">Strong support at 1.0850 level...</div>
-              <div className="text-sidebar-foreground/40 mt-1">2m ago</div>
-            </div>
-            <div className="p-2 rounded-lg bg-sidebar-accent/50">
-              <div className="font-medium text-sidebar-foreground">BTCUSD Swing</div>
-              <div className="text-sidebar-foreground/60">Breakout pattern confirmed...</div>
-              <div className="text-sidebar-foreground/40 mt-1">1h ago</div>
-            </div>
-            <div className="p-2 rounded-lg bg-sidebar-accent/50">
-              <div className="font-medium text-sidebar-foreground">SPY Options</div>
-              <div className="text-sidebar-foreground/60">Risk management suggestions...</div>
-              <div className="text-sidebar-foreground/40 mt-1">3h ago</div>
-            </div>
+            {recentAnalyses.length > 0 ? (
+              recentAnalyses.map((analysis) => (
+                <div key={analysis.id} className="p-2 rounded-lg bg-sidebar-accent/50">
+                  <div className="font-medium text-sidebar-foreground">{analysis.instrument}</div>
+                  <div className="text-sidebar-foreground/60">{analysis.narrative}</div>
+                  <div className="text-sidebar-foreground/40 mt-1">
+                    {new Date(analysis.created_at).toLocaleString(undefined, {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="p-2 rounded-lg bg-sidebar-accent/50 text-center">
+                <div className="text-sidebar-foreground/60">No recent analyses</div>
+                <div className="text-sidebar-foreground/40 mt-1">Start analyzing trades</div>
+              </div>
+            )}
           </div>
         </motion.div>
       )}

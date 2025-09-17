@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { ConversationView } from "@/components/chat/ConversationView";
 import { ChatComposer } from "@/components/chat/ChatComposer";
+import { SaveTradeModal } from "@/components/chat/SaveTradeModal";
 
 interface Message {
   id: string;
@@ -42,6 +43,12 @@ const Chat = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [useMemory, setUseMemory] = useState(true);
   
+  // State for save trade modal
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [currentAnalysis, setCurrentAnalysis] = useState<any>(null);
+  const [currentImageUrl, setCurrentImageUrl] = useState<string | undefined>(undefined);
+  const [currentMessageId, setCurrentMessageId] = useState<string | undefined>(undefined);
+  
   // File input reference
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -73,9 +80,49 @@ const Chat = () => {
         return;
       }
 
-      console.log('Creating conversation for user:', user.id);
+      console.log('Initializing conversation for user:', user.id);
 
-      // Create a new conversation
+      // First, try to load the most recent conversation with messages
+      const { data: recentConversations, error: fetchError } = await supabase
+        .from('conversations')
+        .select(`
+          id, 
+          title, 
+          created_at,
+          messages(id, role, text, image_url, created_at)
+        `)
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (!fetchError && recentConversations && recentConversations.length > 0) {
+        const recentConversation = recentConversations[0];
+        console.log('Loading recent conversation:', recentConversation.id);
+        
+        setConversationId(recentConversation.id);
+        
+        // Load messages for this conversation
+        const { data: conversationMessages, error: messagesError } = await supabase
+          .from('messages')
+          .select('*')
+          .eq('conversation_id', recentConversation.id)
+          .order('created_at', { ascending: true });
+
+        if (!messagesError && conversationMessages) {
+          const formattedMessages = conversationMessages.map(msg => ({
+            ...msg,
+            role: msg.role as 'user' | 'ai',
+            analysis: msg.role === 'ai' ? { narrative: msg.text || '' } : undefined,
+          }));
+          setMessages(formattedMessages);
+          console.log(`Loaded ${formattedMessages.length} messages from recent conversation`);
+        }
+        return;
+      }
+
+      // If no recent conversation exists, create a new one
+      console.log('Creating new conversation for user:', user.id);
+
       const { data: conversation, error } = await supabase
         .from('conversations')
         .insert({
@@ -90,7 +137,7 @@ const Chat = () => {
         throw error;
       }
 
-      console.log('Conversation created:', conversation);
+      console.log('New conversation created:', conversation.id);
       setConversationId(conversation.id);
     } catch (error) {
       console.error('Error initializing conversation:', error);
@@ -306,11 +353,19 @@ const Chat = () => {
           const analysis = data.feedback;
 
           // Save AI response
-          await saveMessage('ai', analysis.narrative, undefined, analysis);
+          const aiMessage = await saveMessage('ai', analysis.narrative, undefined, analysis);
 
           // Extract and save memories
           if (analysis.memory_hint) {
             await saveMemory(analysis.memory_hint, 'note');
+          }
+
+          // Set up data for save trade modal if this was a detailed analysis
+          if (requestAnalysis && (analysis.confluences || analysis.risks || analysis.scenarios)) {
+            setCurrentAnalysis(analysis);
+            setCurrentImageUrl(imageUrl);
+            setCurrentMessageId(aiMessage?.id);
+            setShowSaveModal(true);
           }
 
           toast({
@@ -345,6 +400,26 @@ const Chat = () => {
     }
   };
 
+  const handleSaveTradeComplete = () => {
+    setShowSaveModal(false);
+    setCurrentAnalysis(null);
+    setCurrentImageUrl(undefined);
+    setCurrentMessageId(undefined);
+    toast({
+      title: "Trade saved!",
+      description: "Your trade has been saved to your history",
+    });
+  };
+
+  const handleSaveTradeRequest = (analysis: any, imageUrl?: string) => {
+    setCurrentAnalysis(analysis);
+    setCurrentImageUrl(imageUrl);
+    // Find the message ID for this analysis from the messages array
+    const messageWithAnalysis = messages.find(m => m.role === 'ai' && m.analysis === analysis);
+    setCurrentMessageId(messageWithAnalysis?.id);
+    setShowSaveModal(true);
+  };
+
   return (
     <AppLayout title="AI Trading Coach" subtitle="Chat with your AI trading mentor">
       <div className="flex flex-col h-screen">
@@ -371,7 +446,11 @@ const Chat = () => {
         </div>
 
         {/* Conversation View */}
-        <ConversationView messages={messages} isLoading={isLoading} />
+        <ConversationView 
+          messages={messages} 
+          isLoading={isLoading}
+          onSaveTrade={handleSaveTradeRequest}
+        />
 
         {/* Chat Composer */}
         <div className="border-t p-4">
@@ -383,6 +462,19 @@ const Chat = () => {
             />
           </div>
         </div>
+
+        {/* Save Trade Modal */}
+        {showSaveModal && currentAnalysis && (
+          <SaveTradeModal
+            isOpen={showSaveModal}
+            onClose={() => setShowSaveModal(false)}
+            analysis={currentAnalysis}
+            imageUrl={currentImageUrl}
+            conversationId={conversationId}
+            messageId={currentMessageId}
+            onSave={handleSaveTradeComplete}
+          />
+        )}
       </div>
     </AppLayout>
   );

@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { TrendingUp, TrendingDown, AlertTriangle, CheckSquare, Brain, BookOpen } from 'lucide-react';
-import { SaveTradeModal } from './SaveTradeModal';
 
 interface AnalysisResult {
   narrative: string;
@@ -40,15 +39,10 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
   onSaveTrade,
   isLoading 
 }) => {
-  const [showSaveModal, setShowSaveModal] = useState(false);
-  const [selectedAnalysis, setSelectedAnalysis] = useState<{
-    analysis: AnalysisResult;
-    imageUrl?: string;
-  } | null>(null);
-
   const handleSaveTrade = (analysis: AnalysisResult, imageUrl?: string) => {
-    setSelectedAnalysis({ analysis, imageUrl });
-    setShowSaveModal(true);
+    if (onSaveTrade) {
+      onSaveTrade(analysis, imageUrl);
+    }
   };
 
   if (messages.length === 0) {
@@ -258,19 +252,6 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
         </div>
       )}
 
-      {/* Save Trade Modal */}
-      {showSaveModal && selectedAnalysis && (
-        <SaveTradeModal
-          isOpen={showSaveModal}
-          onClose={() => setShowSaveModal(false)}
-          analysis={selectedAnalysis.analysis}
-          imageUrl={selectedAnalysis.imageUrl}
-          onSave={() => {
-            setShowSaveModal(false);
-            setSelectedAnalysis(null);
-          }}
-        />
-      )}
     </div>
   );
 };
