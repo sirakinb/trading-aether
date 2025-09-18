@@ -2,50 +2,13 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const DEFAULT_SUPABASE_URL = "https://hacsmddazijrghfcoigl.supabase.co";
-const DEFAULT_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhhY3NtZGRhemlqcmdoZmNvaWdsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc3MDU5OTQsImV4cCI6MjA3MzI4MTk5NH0.TvVm0dUGVE32gEBdcoNLD3qo78BxgQy8DFJUpubdn9M";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://hacsmddazijrghfcoigl.supabase.co";
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhhY3NtZGRhemlqcmdoZmNvaWdsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc3MDU5OTQsImV4cCI6MjA3MzI4MTk5NH0.TvVm0dUGVE32gEBdcoNLD3qo78BxgQy8DFJUpubdn9M";
 
-const isValidHttpUrl = (value: unknown): value is string => {
-  if (typeof value !== 'string' || value.trim() === '') return false;
-  // Allow any string that looks like a URL (less strict validation)
-  return value.includes('supabase.co') || value.startsWith('http://') || value.startsWith('https://');
-};
-
-// Resolve envs with validation and safe fallbacks
-const resolvedUrl = isValidHttpUrl(import.meta.env.VITE_SUPABASE_URL)
-  ? import.meta.env.VITE_SUPABASE_URL
-  : DEFAULT_SUPABASE_URL;
-
-// Debug logging for environment variables
-console.log('Environment debug:', {
-  VITE_SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL,
-  VITE_SUPABASE_PUBLISHABLE_KEY: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ? 'Present' : 'Missing',
-  resolvedUrl,
-  resolvedAnonKey: resolvedAnonKey ? 'Present' : 'Missing'
-});
-
-if (resolvedUrl === DEFAULT_SUPABASE_URL && import.meta.env.VITE_SUPABASE_URL) {
-  // Provided value exists but is invalid
-  console.warn('VITE_SUPABASE_URL is invalid. Falling back to default Supabase URL.');
-}
-
-const envAnonKey = (import.meta.env as any).VITE_SUPABASE_ANON_KEY || (import.meta.env as any).VITE_SUPABASE_PUBLISHABLE_KEY;
-const resolvedAnonKey = (typeof envAnonKey === 'string' && envAnonKey.trim() !== '')
-  ? envAnonKey
-  : DEFAULT_SUPABASE_ANON_KEY;
-
-const resolvedFunctionsUrl = isValidHttpUrl(import.meta.env.VITE_SUPABASE_FUNCTIONS_URL)
-  ? import.meta.env.VITE_SUPABASE_FUNCTIONS_URL
-  : undefined;
-
-// Import the supabase client like this:
-// import { supabase } from "@/integrations/supabase/client";
-
-export const supabase = createClient<Database>(resolvedUrl, resolvedAnonKey, {
+export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
   },
-  ...(resolvedFunctionsUrl ? { functions: { url: resolvedFunctionsUrl } } : {}),
 });
