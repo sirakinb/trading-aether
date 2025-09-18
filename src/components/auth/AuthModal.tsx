@@ -20,6 +20,7 @@ export function AuthModal({ isOpen, onClose, dismissible = true }: AuthModalProp
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
+  const [showEmailSent, setShowEmailSent] = useState(false);
   const { signUp, signIn } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -42,26 +43,50 @@ export function AuthModal({ isOpen, onClose, dismissible = true }: AuthModalProp
       if (isSignUp) {
         const { error } = await signUp(email, password);
         if (error) {
-          toast.error("Failed to sign up", {
-            description: error.message
-          });
+          // Handle specific signup errors
+          if (error.message?.includes("already registered")) {
+            toast.error("Account already exists", {
+              description: "Please try signing in instead, or use a different email address."
+            });
+            // Switch to sign in mode
+            setIsSignUp(false);
+          } else {
+            toast.error("Failed to create account", {
+              description: error.message
+            });
+          }
         } else {
-          toast.success("Account created successfully!");
-          onClose();
+          toast.success("Account created!", {
+            description: "Please check your email to confirm your account before signing in."
+          });
+          setShowEmailSent(true);
+          setIsSignUp(false); // Switch to sign in mode
         }
       } else {
         const { error } = await signIn(email, password);
         if (error) {
-          toast.error("Failed to sign in", {
-            description: error.message
-          });
+          if (error.message?.includes("Email not confirmed")) {
+            toast.error("Email not confirmed", {
+              description: "Please check your email and click the confirmation link first."
+            });
+          } else if (error.message?.includes("Invalid login credentials")) {
+            toast.error("Invalid credentials", {
+              description: "Please check your email and password, or sign up if you don't have an account."
+            });
+          } else {
+            toast.error("Failed to sign in", {
+              description: error.message
+            });
+          }
         } else {
-          toast.success("Signed in successfully!");
+          toast.success("Welcome back!");
           onClose();
         }
       }
     } catch (error) {
-      toast.error("An error occurred");
+      toast.error("An error occurred", {
+        description: "Please try again or contact support if the issue persists."
+      });
     }
     
     setIsLoading(false);
@@ -74,6 +99,7 @@ export function AuthModal({ isOpen, onClose, dismissible = true }: AuthModalProp
     setIsLoading(false);
     setShowPassword(false);
     setIsSignUp(false);
+    setShowEmailSent(false);
     onClose();
   };
 
@@ -111,15 +137,24 @@ export function AuthModal({ isOpen, onClose, dismissible = true }: AuthModalProp
           <div className="space-y-6">
             <div className="text-center space-y-2">
               <div className="h-12 w-12 bg-primary/10 rounded-lg flex items-center justify-center mx-auto">
-                <User className="h-6 w-6 text-primary" />
+                {showEmailSent ? (
+                  <Mail className="h-6 w-6 text-primary" />
+                ) : (
+                  <User className="h-6 w-6 text-primary" />
+                )}
               </div>
               <h2 className="text-2xl font-semibold">
-                {isSignUp ? "Create Account" : "Welcome Back"}
+                {showEmailSent 
+                  ? "Check Your Email" 
+                  : isSignUp ? "Create Account" : "Welcome Back"
+                }
               </h2>
               <p className="text-muted-foreground">
-                {isSignUp 
-                  ? "Sign up to start using TradeCopilot"
-                  : "Sign in to your TradeCopilot account"
+                {showEmailSent 
+                  ? "We've sent a confirmation link to your email. Please click it, then sign in below."
+                  : isSignUp 
+                    ? "Sign up to start using TradeCopilot"
+                    : "Sign in to your TradeCopilot account"
                 }
               </p>
             </div>
@@ -197,7 +232,10 @@ export function AuthModal({ isOpen, onClose, dismissible = true }: AuthModalProp
               <div className="text-center">
                 <button
                   type="button"
-                  onClick={() => setIsSignUp(!isSignUp)}
+                  onClick={() => {
+                    setIsSignUp(!isSignUp);
+                    setShowEmailSent(false);
+                  }}
                   className="text-sm text-muted-foreground hover:text-primary"
                 >
                   {isSignUp 
