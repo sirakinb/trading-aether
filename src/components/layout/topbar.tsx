@@ -49,24 +49,9 @@ export function Topbar({ title, subtitle, className }: TopbarProps) {
         </div>
       </div>
 
-      {/* Center - Model selector (future) */}
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-muted-foreground">GPT-4 Vision</span>
-        <span className="text-xs text-primary">•</span>
-        <span className="text-xs text-muted-foreground">Real-time</span>
-      </div>
 
       {/* Right side - User controls */}
       <div className="flex items-center gap-3">
-        {/* Future model selector */}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="gap-2 text-muted-foreground hover:text-foreground"
-        >
-          <span className="text-sm">Advanced Model</span>
-          <ChevronDown className="h-3 w-3" />
-        </Button>
 
         {/* User avatar */}
         {user ? (

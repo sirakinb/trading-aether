@@ -9,7 +9,7 @@ import {
   Settings, 
   TrendingUp,
   ChevronLeft,
-  ChevronRight 
+  ChevronRight
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -40,57 +40,42 @@ const navigation = [
   },
 ];
 
-interface RecentAnalysis {
-  id: string;
-  instrument: string;
-  narrative: string;
-  created_at: string;
-}
 
 export function Sidebar({ className }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
-  const [recentAnalyses, setRecentAnalyses] = useState<RecentAnalysis[]>([]);
+  const [userSettings, setUserSettings] = useState<any>(null);
+  const [userEmail, setUserEmail] = useState<string>('');
   const location = useLocation();
   const currentPath = location.pathname;
 
   const isActive = (path: string) => currentPath === path;
 
   useEffect(() => {
-    loadRecentAnalyses();
+    loadUserSettings();
   }, []);
 
-  const loadRecentAnalyses = async () => {
+  const loadUserSettings = async () => {
     try {
-      const { data: messages, error } = await supabase
-        .from('messages')
-        .select('id, text, created_at')
-        .eq('role', 'ai')
-        .not('text', 'is', null)
-        .order('created_at', { ascending: false })
-        .limit(3);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-      if (error) throw error;
+      setUserEmail(user.email || '');
 
-      if (messages) {
-        const analyses: RecentAnalysis[] = messages.map(msg => {
-          // Try to extract instrument from the text
-          const text = msg.text || '';
-          const instrumentMatch = text.match(/\b([A-Z]{2,6}USD|[A-Z]{3,6}|SPY|QQQ|BTC|ETH)\b/);
-          const instrument = instrumentMatch ? instrumentMatch[0] : 'Analysis';
-          
-          return {
-            id: msg.id,
-            instrument,
-            narrative: text.length > 60 ? text.substring(0, 60) + '...' : text,
-            created_at: msg.created_at,
-          };
-        });
-        setRecentAnalyses(analyses);
+      // Load user settings
+      const { data: settings, error } = await supabase
+        .from('user_settings')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!error && settings) {
+        setUserSettings(settings);
       }
     } catch (error) {
-      console.error('Error loading recent analyses:', error);
+      console.error('Error loading user settings:', error);
     }
   };
+
 
   return (
     <motion.div 
@@ -168,41 +153,6 @@ export function Sidebar({ className }: SidebarProps) {
         })}
       </nav>
 
-      {/* Recent Analysis Section */}
-      {!collapsed && (
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="p-4 border-t border-sidebar-border"
-        >
-          <h3 className="text-xs font-semibold text-sidebar-foreground/60 uppercase tracking-wider mb-3">
-            Recent Analysis
-          </h3>
-          <div className="space-y-2 text-xs">
-            {recentAnalyses.length > 0 ? (
-              recentAnalyses.map((analysis) => (
-                <div key={analysis.id} className="p-2 rounded-lg bg-sidebar-accent/50">
-                  <div className="font-medium text-sidebar-foreground">{analysis.instrument}</div>
-                  <div className="text-sidebar-foreground/60">{analysis.narrative}</div>
-                  <div className="text-sidebar-foreground/40 mt-1">
-                    {new Date(analysis.created_at).toLocaleString(undefined, {
-                      month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="p-2 rounded-lg bg-sidebar-accent/50 text-center">
-                <div className="text-sidebar-foreground/60">No recent analyses</div>
-                <div className="text-sidebar-foreground/40 mt-1">Start analyzing trades</div>
-              </div>
-            )}
-          </div>
-        </motion.div>
-      )}
 
       {/* User Profile */}
       <div className="p-4 border-t border-sidebar-border">
@@ -211,7 +161,11 @@ export function Sidebar({ className }: SidebarProps) {
           collapsed && "justify-center"
         )}>
           <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center">
-            <span className="text-sm font-semibold text-primary-foreground">AT</span>
+            <span className="text-sm font-semibold text-primary-foreground">
+              {userSettings?.display_name 
+                ? userSettings.display_name.charAt(0).toUpperCase() 
+                : userEmail.charAt(0).toUpperCase() || 'U'}
+            </span>
           </div>
           {!collapsed && (
             <motion.div
@@ -219,12 +173,17 @@ export function Sidebar({ className }: SidebarProps) {
               animate={{ opacity: 1 }}
               className="flex flex-col"
             >
-              <span className="text-sm font-medium text-sidebar-foreground">Alex Thompson</span>
-              <span className="text-xs text-sidebar-foreground/60">Pro Trader</span>
+              <span className="text-sm font-medium text-sidebar-foreground">
+                {userSettings?.display_name || userEmail?.split('@')[0] || 'User'}
+              </span>
+              <span className="text-xs text-sidebar-foreground/60">
+                {userSettings?.trading_experience || 'Trader'}
+              </span>
             </motion.div>
           )}
         </div>
       </div>
+
     </motion.div>
   );
 }

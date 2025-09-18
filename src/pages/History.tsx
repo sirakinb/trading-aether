@@ -9,7 +9,8 @@ import {
   Search,
   MoreHorizontal,
   Eye,
-  ChevronDown
+  ChevronDown,
+  Trash2
 } from "lucide-react";
 import { AppLayout } from "@/components/layout/app-layout";
 import { TradingCard, TradingCardContent, TradingCardHeader, TradingCardTitle } from "@/components/ui/trading-card";
@@ -19,6 +20,7 @@ import { TradesAPI, type Trade } from "@/lib/trades";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import { TradeDetailsModal } from "@/components/trade/TradeDetailsModal";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 
@@ -40,6 +42,8 @@ export default function History() {
   const [outcomeFilter, setOutcomeFilter] = useState("all");
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [tradeToDelete, setTradeToDelete] = useState<Trade | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -80,6 +84,35 @@ export default function History() {
   const handleTradeUpdate = (updatedTrade: Trade) => {
     setTrades(prev => prev.map(t => t.id === updatedTrade.id ? updatedTrade : t));
     loadStats(); // Refresh stats
+  };
+
+  const handleDeleteTrade = async () => {
+    if (!tradeToDelete) return;
+    
+    try {
+      await TradesAPI.delete(tradeToDelete.id);
+      toast({
+        title: "Trade deleted",
+        description: "Trade has been successfully deleted",
+      });
+      loadTrades();
+      loadStats();
+    } catch (error) {
+      console.error('Error deleting trade:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete trade. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setShowDeleteDialog(false);
+      setTradeToDelete(null);
+    }
+  };
+
+  const openDeleteDialog = (trade: Trade) => {
+    setTradeToDelete(trade);
+    setShowDeleteDialog(true);
   };
 
   // Filter trades based on search and filters
@@ -324,14 +357,14 @@ export default function History() {
               size="sm"
               onClick={() => setViewMode("cards")}
             >
-              📊 Cards
+              Cards
             </Button>
             <Button
               variant={viewMode === "table" ? "default" : "ghost"}  
               size="sm"
               onClick={() => setViewMode("table")}
             >
-              📋 Table
+              Table
             </Button>
             <Button variant="outline" size="sm" onClick={() => handleExport('csv')}>
               <Download className="h-4 w-4 mr-2" />
@@ -455,14 +488,23 @@ export default function History() {
                             {trade.outcome === "unknown" ? "pending" : trade.outcome}
                           </span>
                         </div>
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => handleViewDetails(trade)}
-                        >
-                          <Eye className="h-3 w-3 mr-1" />
-                          View Details
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => handleViewDetails(trade)}
+                          >
+                            <Eye className="h-3 w-3 mr-1" />
+                            View Details
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => openDeleteDialog(trade)}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
                       </div>
 
                       {trade.tags && trade.tags.length > 0 && (
@@ -566,14 +608,23 @@ export default function History() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleViewDetails(trade)}
-                          >
-                            <Eye className="h-3 w-3 mr-1" />
-                            View
-                          </Button>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleViewDetails(trade)}
+                            >
+                              <Eye className="h-3 w-3 mr-1" />
+                              View
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => openDeleteDialog(trade)}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -593,6 +644,32 @@ export default function History() {
             onTradeUpdate={handleTradeUpdate}
           />
         )}
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Trade</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete this trade? This action cannot be undone.
+                {tradeToDelete && (
+                  <div className="mt-2 p-2 bg-muted rounded text-sm">
+                    <strong>{tradeToDelete.instrument}</strong> - {tradeToDelete.direction.toUpperCase()} - {formatDate(tradeToDelete.created_at)}
+                  </div>
+                )}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={handleDeleteTrade}
+                className="bg-destructive hover:bg-destructive/90"
+              >
+                Delete Trade
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </AppLayout>
     </ProtectedRoute>

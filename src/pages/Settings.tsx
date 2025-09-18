@@ -1,29 +1,127 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { 
   User, 
-  Bell, 
-  Shield, 
-  Database,
-  Palette,
   Brain,
-  Download,
-  Trash2,
-  Eye,
-  EyeOff
+  Save,
+  Loader2
 } from "lucide-react";
 import { AppLayout } from "@/components/layout/app-layout";
 import { TradingCard, TradingCardContent, TradingCardHeader, TradingCardTitle } from "@/components/ui/trading-card";
 import { Button } from "@/components/ui/button";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+
+interface UserSettings {
+  display_name: string;
+  trading_experience: string;
+  trading_style: string;
+  risk_level: string;
+  analysis_depth: string;
+  remember_patterns: boolean;
+  context_window: string;
+}
 
 export default function Settings() {
-  const [apiKeyVisible, setApiKeyVisible] = useState(false);
-  const [notifications, setNotifications] = useState({
-    tradeAlerts: true,
-    analysisComplete: true,
-    weeklyReports: false,
+  const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [settings, setSettings] = useState<UserSettings>({
+    display_name: '',
+    trading_experience: 'Intermediate',
+    trading_style: 'Day Trading',
+    risk_level: 'Moderate',
+    analysis_depth: 'Standard',
+    remember_patterns: true,
+    context_window: 'Last 30 trades'
   });
+
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  const loadSettings = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Try to load existing settings
+      const { data: userSettings, error } = await supabase
+        .from('user_settings')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      if (userSettings) {
+        setSettings({
+          display_name: userSettings.display_name || user.email?.split('@')[0] || '',
+          trading_experience: userSettings.trading_experience || 'Intermediate',
+          trading_style: userSettings.trading_style || 'Day Trading',
+          risk_level: userSettings.risk_level || 'Moderate',
+          analysis_depth: userSettings.analysis_depth || 'Standard',
+          remember_patterns: userSettings.remember_patterns ?? true,
+          context_window: userSettings.context_window || 'Last 30 trades'
+        });
+      } else {
+        // Set default display name from email
+        setSettings(prev => ({
+          ...prev,
+          display_name: user.email?.split('@')[0] || ''
+        }));
+      }
+    } catch (error) {
+      console.error('Error loading settings:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const saveSettings = async () => {
+    setIsSaving(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const { error } = await supabase
+        .from('user_settings')
+        .upsert({
+          user_id: user.id,
+          ...settings,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_id'
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "Settings saved",
+        description: "Your preferences have been updated successfully",
+      });
+
+      // Trigger a page refresh to update sidebar
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    } catch (error) {
+      console.error('Error saving settings:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save settings. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const updateSetting = (key: keyof UserSettings, value: any) => {
+    setSettings(prev => ({
+      ...prev,
+      [key]: value
+    }));
+  };
 
   const settingSections = [
     {
@@ -33,29 +131,29 @@ export default function Settings() {
         {
           label: "Display Name",
           type: "input",
-          value: "Alex Thompson",
+          key: "display_name",
           description: "Your name as it appears in the interface"
         },
         {
           label: "Trading Experience Level",
           type: "select",
-          value: "Professional",
+          key: "trading_experience",
           options: ["Beginner", "Intermediate", "Advanced", "Professional"],
-          description: "Helps tailor analysis complexity"
+          description: "Helps tailor analysis complexity to your skill level"
         },
         {
           label: "Primary Trading Style",
-          type: "select", 
-          value: "Swing Trading",
+          type: "select",
+          key: "trading_style",
           options: ["Scalping", "Day Trading", "Swing Trading", "Position Trading"],
-          description: "Influences risk management suggestions"
+          description: "Influences risk management and timeframe suggestions"
         },
         {
           label: "Preferred Risk Level",
           type: "select",
-          value: "Moderate",
+          key: "risk_level",
           options: ["Conservative", "Moderate", "Aggressive"],
-          description: "Default risk parameters for analysis"
+          description: "Default risk parameters for trade analysis"
         }
       ]
     },
@@ -66,108 +164,47 @@ export default function Settings() {
         {
           label: "Analysis Depth",
           type: "select",
-          value: "Comprehensive",
+          key: "analysis_depth",
           options: ["Quick", "Standard", "Comprehensive"],
-          description: "Detail level in trade analysis"
+          description: "Controls detail level and processing time for AI analysis"
         },
         {
           label: "Remember Trading Patterns",
           type: "toggle",
-          value: true,
-          description: "Learn from your past trades to improve suggestions"
+          key: "remember_patterns",
+          description: "AI learns from your trades to provide personalized insights"
         },
         {
           label: "Context Window",
           type: "select",
-          value: "Last 30 trades",
+          key: "context_window",
           options: ["Last 10 trades", "Last 30 trades", "Last 100 trades", "All trades"],
-          description: "How much trading history to consider"
-        }
-      ]
-    },
-    {
-      title: "Notifications",
-      icon: Bell,
-      settings: [
-        {
-          label: "Trade Analysis Complete",
-          type: "toggle",
-          value: notifications.analysisComplete,
-          key: "analysisComplete",
-          description: "Notify when AI finishes analyzing your trades"
-        },
-        {
-          label: "Risk Alert Notifications",
-          type: "toggle", 
-          value: notifications.tradeAlerts,
-          key: "tradeAlerts",
-          description: "Alerts for high-risk trade setups"
-        },
-        {
-          label: "Weekly Performance Reports",
-          type: "toggle",
-          value: notifications.weeklyReports,
-          key: "weeklyReports",
-          description: "Summary of your trading performance"
-        }
-      ]
-    },
-    {
-      title: "Data & Privacy",
-      icon: Shield,
-      settings: [
-        {
-          label: "Data Retention",
-          type: "select",
-          value: "1 year",
-          options: ["3 months", "6 months", "1 year", "2 years", "Forever"],
-          description: "How long to keep your trading data"
-        },
-        {
-          label: "Anonymous Analytics",
-          type: "toggle",
-          value: true,
-          description: "Help improve TradeCopilot with anonymous usage data"
-        },
-        {
-          label: "Export Data",
-          type: "action",
-          action: "download",
-          description: "Download all your trading data and analysis"
-        },
-        {
-          label: "Delete All Data",
-          type: "action", 
-          action: "delete",
-          description: "Permanently delete all your data from TradeCopilot",
-          dangerous: true
+          description: "How much trading history AI considers for pattern recognition"
         }
       ]
     }
   ];
 
-  const handleNotificationToggle = (key: string) => {
-    setNotifications(prev => ({
-      ...prev,
-      [key]: !prev[key as keyof typeof notifications]
-    }));
-  };
-
   const renderSetting = (setting: any) => {
+    const currentValue = settings[setting.key as keyof UserSettings];
+    
     switch (setting.type) {
       case "input":
         return (
           <input
             type="text"
-            defaultValue={setting.value}
+            value={currentValue as string || ''}
+            onChange={(e) => updateSetting(setting.key, e.target.value)}
             className="p-2 rounded-lg bg-input border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            placeholder={setting.label}
           />
         );
       
       case "select":
         return (
           <select 
-            defaultValue={setting.value}
+            value={currentValue as string}
+            onChange={(e) => updateSetting(setting.key, e.target.value)}
             className="p-2 rounded-lg bg-input border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           >
             {setting.options?.map((option: string) => (
@@ -181,31 +218,32 @@ export default function Settings() {
           <label className="relative inline-flex items-center cursor-pointer">
             <input
               type="checkbox"
-              checked={setting.key ? notifications[setting.key as keyof typeof notifications] : setting.value}
-              onChange={() => setting.key && handleNotificationToggle(setting.key)}
+              checked={currentValue as boolean}
+              onChange={(e) => updateSetting(setting.key, e.target.checked)}
               className="sr-only peer"
             />
             <div className="relative w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
           </label>
         );
       
-      case "action":
-        return (
-          <Button
-            variant={setting.dangerous ? "destructive" : "outline"}
-            size="sm"
-            className="w-fit"
-          >
-            {setting.action === "download" && <Download className="h-4 w-4 mr-2" />}
-            {setting.action === "delete" && <Trash2 className="h-4 w-4 mr-2" />}
-            {setting.label}
-          </Button>
-        );
-      
       default:
         return null;
     }
   };
+
+  if (isLoading) {
+    return (
+      <ProtectedRoute>
+        <AppLayout title="Settings" subtitle="Preferences & memory">
+          <div className="p-6 max-w-4xl mx-auto">
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          </div>
+        </AppLayout>
+      </ProtectedRoute>
+    );
+  }
 
   return (
     <ProtectedRoute>
@@ -259,8 +297,23 @@ export default function Settings() {
           transition={{ delay: 0.4 }}
           className="flex justify-end"
         >
-          <Button variant="premium" size="lg">
-            Save Changes
+          <Button 
+            variant="default" 
+            size="lg"
+            onClick={saveSettings}
+            disabled={isSaving}
+          >
+            {isSaving ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="h-4 w-4 mr-2" />
+                Save Changes
+              </>
+            )}
           </Button>
         </motion.div>
       </div>

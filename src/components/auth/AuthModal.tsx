@@ -10,9 +10,10 @@ import { toast } from "sonner";
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
+  dismissible?: boolean;
 }
 
-export function AuthModal({ isOpen, onClose }: AuthModalProps) {
+export function AuthModal({ isOpen, onClose, dismissible = true }: AuthModalProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -87,7 +88,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           className="absolute inset-0 bg-background/80 backdrop-blur-sm"
-          onClick={handleClose}
+          onClick={dismissible ? handleClose : undefined}
         />
         
         {/* Modal */}
@@ -98,12 +99,14 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
           className="relative bg-card border border-border rounded-xl p-6 w-full max-w-md mx-4 shadow-xl"
         >
           {/* Close button */}
-          <button
-            onClick={handleClose}
-            className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"
-          >
-            <X className="h-5 w-5" />
-          </button>
+          {dismissible && (
+            <button
+              onClick={handleClose}
+              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          )}
 
           <div className="space-y-6">
             <div className="text-center space-y-2">

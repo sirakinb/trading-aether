@@ -47,6 +47,7 @@ export const TradeDetailsModal: React.FC<TradeDetailsModalProps> = ({
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingChart, setIsLoadingChart] = useState(true);
   const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null);
   const [chartImage, setChartImage] = useState<string | null>(null);
   
@@ -57,6 +58,7 @@ export const TradeDetailsModal: React.FC<TradeDetailsModalProps> = ({
 
   useEffect(() => {
     if (isOpen && trade) {
+      setIsLoadingChart(true);
       loadTradeDetails();
       setEditOutcome(trade.outcome);
       setEditRR(trade.rr_numeric?.toString() || '');
@@ -66,6 +68,8 @@ export const TradeDetailsModal: React.FC<TradeDetailsModalProps> = ({
 
   const loadTradeDetails = async () => {
     try {
+      let foundChartImage: string | null = null;
+      
       // Load analysis data if message_id exists
       if (trade.message_id) {
         const { data: message, error: messageError } = await supabase
@@ -87,28 +91,48 @@ export const TradeDetailsModal: React.FC<TradeDetailsModalProps> = ({
               narrative: message.text || 'No analysis available'
             });
           }
-          setChartImage(message.image_url);
+          
+          if (message.image_url) {
+            foundChartImage = message.image_url;
+          }
         }
       }
 
-      // If we have a conversation_id, try to find the related user message with image
-      if (trade.conversation_id && !chartImage) {
-        const { data: userMessage, error } = await supabase
+      // If we still don't have a chart and have a conversation_id, try to find any user message with image
+      if (!foundChartImage && trade.conversation_id) {
+        const { data: userMessages, error } = await supabase
           .from('messages')
-          .select('image_url')
+          .select('image_url, created_at')
           .eq('conversation_id', trade.conversation_id)
           .eq('role', 'user')
           .not('image_url', 'is', null)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .single();
+          .order('created_at', { ascending: false });
 
-        if (!error && userMessage?.image_url) {
-          setChartImage(userMessage.image_url);
+        if (!error && userMessages && userMessages.length > 0) {
+          // Use the most recent user message with an image
+          foundChartImage = userMessages[0].image_url;
         }
       }
+
+      // If we still don't have a chart, try to find any message in the conversation with an image
+      if (!foundChartImage && trade.conversation_id) {
+        const { data: anyMessages, error } = await supabase
+          .from('messages')
+          .select('image_url, created_at')
+          .eq('conversation_id', trade.conversation_id)
+          .not('image_url', 'is', null)
+          .order('created_at', { ascending: false });
+
+        if (!error && anyMessages && anyMessages.length > 0) {
+          foundChartImage = anyMessages[0].image_url;
+        }
+      }
+
+      setChartImage(foundChartImage);
     } catch (error) {
       console.error('Error loading trade details:', error);
+    } finally {
+      setIsLoadingChart(false);
     }
   };
 
@@ -274,16 +298,39 @@ export const TradeDetailsModal: React.FC<TradeDetailsModalProps> = ({
           </Card>
 
           {/* Chart Image */}
-          {chartImage && (
-            <Card className="p-4">
-              <h3 className="font-semibold mb-3">Chart</h3>
+          <Card className="p-4">
+            <h3 className="font-semibold mb-3">Chart</h3>
+            {isLoadingChart ? (
+              <div className="w-full max-w-2xl mx-auto p-8 text-center">
+                <div className="animate-pulse">
+                  <div className="bg-gray-200 h-64 rounded"></div>
+                  <div className="text-sm text-gray-500 mt-2">Loading chart...</div>
+                </div>
+              </div>
+            ) : chartImage ? (
               <img
                 src={chartImage}
                 alt="Trading chart"
                 className="w-full max-w-2xl mx-auto rounded border"
+                onError={(e) => {
+                  console.error('Failed to load chart image:', chartImage);
+                  e.currentTarget.style.display = 'none';
+                }}
               />
-            </Card>
-          )}
+            ) : (
+              <div className="w-full max-w-2xl mx-auto p-8 border-2 border-dashed border-gray-300 rounded text-center text-gray-500">
+                <div className="text-lg mb-2">📈</div>
+                <div className="text-sm">
+                  {trade.conversation_id ? 'Chart not found for this trade' : 'No chart available'}
+                </div>
+                {trade.conversation_id && (
+                  <div className="text-xs mt-1 text-gray-400">
+                    This trade may not have had a chart uploaded
+                  </div>
+                )}
+              </div>
+            )}
+          </Card>
 
           {/* Entry Plan */}
           {trade.entry_plan && (

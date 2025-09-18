@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -35,6 +36,7 @@ interface Message {
 }
 
 const Chat = () => {
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   
   // State for conversation
@@ -81,6 +83,43 @@ const Chat = () => {
       }
 
       console.log('Initializing conversation for user:', user.id);
+
+      // Check if we have URL parameters for specific conversation/message
+      const urlConversationId = searchParams.get('conversation');
+      const urlMessageId = searchParams.get('message');
+
+      if (urlConversationId) {
+        // Load the specific conversation from URL
+        console.log('Loading specific conversation from URL:', urlConversationId);
+        setConversationId(urlConversationId);
+        
+        // Load messages for this specific conversation
+        const { data: conversationMessages, error: messagesError } = await supabase
+          .from('messages')
+          .select('*')
+          .eq('conversation_id', urlConversationId)
+          .order('created_at', { ascending: true });
+
+        if (!messagesError && conversationMessages) {
+          setMessages(conversationMessages);
+          
+          // If we have a specific message ID, scroll to it after a short delay
+          if (urlMessageId) {
+            setTimeout(() => {
+              const messageElement = document.getElementById(`message-${urlMessageId}`);
+              if (messageElement) {
+                messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                // Highlight the message temporarily
+                messageElement.style.backgroundColor = 'rgba(34, 197, 94, 0.1)';
+                setTimeout(() => {
+                  messageElement.style.backgroundColor = '';
+                }, 3000);
+              }
+            }, 500);
+          }
+        }
+        return;
+      }
 
       // First, try to load the most recent conversation with messages
       const { data: recentConversations, error: fetchError } = await supabase
@@ -303,6 +342,7 @@ const Chat = () => {
 
   const saveMemory = async (content: string, kind: 'preference' | 'pattern' | 'note') => {
     try {
+      console.log('saveMemory called with:', { content, kind });
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       
       if (authError || !user) {
@@ -310,13 +350,21 @@ const Chat = () => {
         return;
       }
 
-      await supabase
+      console.log('Inserting memory for user:', user.id);
+      const { data, error } = await supabase
         .from('memories')
         .insert({
           user_id: user.id,
           kind,
           content,
-        });
+        })
+        .select();
+
+      if (error) {
+        console.error('Database error saving memory:', error);
+      } else {
+        console.log('Memory saved successfully:', data);
+      }
     } catch (error) {
       console.error('Error saving memory:', error);
     }
@@ -355,9 +403,22 @@ const Chat = () => {
           // Save AI response
           const aiMessage = await saveMessage('ai', analysis.narrative, undefined, analysis);
 
-          // Extract and save memories
-          if (analysis.memory_hint) {
+          // Extract and save memories (only if memory is enabled)
+          console.log('Memory check:', { 
+            memory_hint: analysis.memory_hint, 
+            useMemory, 
+            analysis 
+          });
+          if (analysis.memory_hint && analysis.memory_hint !== null && useMemory) {
+            console.log('Saving memory:', analysis.memory_hint);
             await saveMemory(analysis.memory_hint, 'note');
+          } else {
+            console.log('Memory not saved because:', {
+              hasMemoryHint: !!analysis.memory_hint,
+              memoryHint: analysis.memory_hint,
+              useMemory,
+              reason: !analysis.memory_hint ? 'No memory hint' : !useMemory ? 'Memory disabled' : 'Unknown'
+            });
           }
 
           // Set up data for save trade modal if this was a detailed analysis
@@ -426,7 +487,7 @@ const Chat = () => {
         {/* Header with Memory Toggle */}
         <div className="border-b bg-card">
           <div className="max-w-4xl mx-auto px-4 py-3">
-            <div className="flex items-center justify-end gap-4">
+            <div className="flex items-center justify-end">
               <div className="flex items-center space-x-2">
                 <Switch
                   id="memory-mode"
@@ -436,10 +497,6 @@ const Chat = () => {
                 <Label htmlFor="memory-mode" className="text-sm">
                   Use Memory
                 </Label>
-              </div>
-              <div className="flex items-center gap-2 bg-green-50 text-green-700 border border-green-200 rounded-full px-3 py-1">
-                <div className="w-2 h-2 bg-green-500 rounded-full" />
-                <span className="text-sm">Online</span>
               </div>
             </div>
           </div>

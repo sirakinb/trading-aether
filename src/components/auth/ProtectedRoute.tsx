@@ -43,7 +43,8 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
         </div>
         <AuthModal 
           isOpen={showAuthModal} 
-          onClose={() => setShowAuthModal(false)} 
+          onClose={() => setShowAuthModal(false)}
+          dismissible={false}
         />
       </>
     );

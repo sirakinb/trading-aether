@@ -93,6 +93,9 @@ serve(async (req) => {
 
     // Get conversation history for context
     let conversationHistory: any[] = [];
+    let userSettings: any = null;
+    let memories: string[] = [];
+    
     if (conversationId) {
       try {
         const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -101,18 +104,67 @@ serve(async (req) => {
 
         console.log('Fetching conversation history for:', conversationId);
 
-        const { data: messages, error } = await supabase
-          .from('messages')
-          .select('role, text, image_url, created_at')
-          .eq('conversation_id', conversationId)
-          .order('created_at', { ascending: true })
-          .limit(10); // Get last 10 messages for context
+        // Get conversation to find user_id
+        const { data: conversation, error: convError } = await supabase
+          .from('conversations')
+          .select('user_id')
+          .eq('id', conversationId)
+          .single();
 
-        if (error) {
-          console.log('Error fetching conversation history:', error);
-        } else if (messages) {
-          conversationHistory = messages;
-          console.log(`Found ${messages.length} previous messages in conversation`);
+        if (!convError && conversation) {
+          // Load user settings
+          const { data: settings, error: settingsError } = await supabase
+            .from('user_settings')
+            .select('*')
+            .eq('user_id', conversation.user_id)
+            .single();
+
+          if (!settingsError && settings) {
+            userSettings = settings;
+            console.log('Loaded user settings:', settings.analysis_depth, settings.context_window);
+          }
+
+          // Load memories if memory is enabled
+          if (useMemory && userSettings?.remember_patterns !== false) {
+            const { data: memoryData, error: memoryError } = await supabase
+              .from('memories')
+              .select('content')
+              .eq('user_id', conversation.user_id)
+              .order('created_at', { ascending: false })
+              .limit(10); // Load recent memories
+
+            if (!memoryError && memoryData) {
+              memories = memoryData
+                .filter(m => m.content)
+                .map(m => m.content!);
+              console.log('Loaded memories:', memories.length);
+            }
+          }
+
+          // Determine context window limit based on user settings
+          let contextLimit = 10; // default
+          if (userSettings?.context_window) {
+            switch (userSettings.context_window) {
+              case 'Last 10 trades': contextLimit = 5; break;
+              case 'Last 30 trades': contextLimit = 10; break;
+              case 'Last 100 trades': contextLimit = 20; break;
+              case 'All trades': contextLimit = 50; break;
+            }
+          }
+
+          const { data: messages, error } = await supabase
+            .from('messages')
+            .select('role, text, image_url, created_at')
+            .eq('conversation_id', conversationId)
+            .order('created_at', { ascending: true })
+            .limit(contextLimit);
+
+          if (error) {
+            console.log('Error fetching conversation history:', error);
+          } else if (messages) {
+            conversationHistory = messages;
+            console.log(`Found ${messages.length} previous messages in conversation`);
+          }
         }
       } catch (error) {
         console.log('Failed to fetch conversation history:', error);
@@ -124,18 +176,62 @@ serve(async (req) => {
     const model = hasImages ? 'gpt-4o' : 'gpt-4o-mini';
     
     console.log(`Using model: ${model} (${hasImages ? 'vision' : 'text-only'})`);
-    // Build system prompt
+    
+    // Build user context from settings
+    let userContext = '';
+    if (userSettings) {
+      userContext = `
+TRADER PROFILE:
+- Experience Level: ${userSettings.trading_experience || 'Intermediate'}
+- Trading Style: ${userSettings.trading_style || 'Day Trading'}  
+- Risk Preference: ${userSettings.risk_level || 'Moderate'}
+- Analysis Depth: ${userSettings.analysis_depth || 'Standard'}
+
+ANALYSIS INSTRUCTIONS:
+${userSettings.analysis_depth === 'Quick' ? '- Keep analysis concise and focused on key points only' : ''}
+${userSettings.analysis_depth === 'Comprehensive' ? '- Provide detailed, thorough analysis with multiple scenarios and deep technical insights' : ''}
+${userSettings.analysis_depth === 'Standard' ? '- Provide balanced analysis with good detail without being overwhelming' : ''}
+
+- Tailor risk assessment to ${userSettings.risk_level?.toLowerCase() || 'moderate'} risk tolerance
+- Consider ${userSettings.trading_style || 'day trading'} timeframes and strategies
+- Adjust complexity for ${userSettings.trading_experience?.toLowerCase() || 'intermediate'} level trader
+`;
+    }
+
+    // Build system prompt with memories
+    let memoryContext = '';
+    if (memories && memories.length > 0) {
+      memoryContext = `\n\nWhat I remember about your trading style and patterns:\n${memories.map(m => `- ${m}`).join('\n')}`;
+    }
+
     const systemPrompt = requestAnalysis 
-      ? `You are an experienced trading coach having an ongoing conversation with a trader. You remember the context of your previous discussions. Respond naturally and conversationally like you're continuing a chat with a fellow trader. Provide both narrative feedback AND structured analysis. Respond with a JSON object:
+      ? `You are an experienced trading coach having an ongoing conversation with a trader. You remember the context of your previous discussions and adapt to their trading profile. Respond naturally and conversationally like you're continuing a chat with a fellow trader. Provide both narrative feedback AND structured analysis.
+
+${userContext}${memoryContext}
+
+Respond with a JSON object:
 {
   "narrative": "Natural conversational response that references previous context when relevant",
   "confluences": ["Positive signals if any"],
   "risks": ["Key risks if any"], 
   "scenarios": {"bull": "Bullish scenario", "bear": "Bearish scenario", "invalidation": "Invalidation level"},
   "checklist": ["Action items"],
-  "psychology_hint": "Mindset note"
-}`
-      : `You are an experienced trading coach having an ongoing conversation with a trader. You remember the context of your previous discussions. Respond naturally and conversationally like you're continuing a chat with a fellow trader. Keep it concise but reference previous context when relevant. Respond with JSON: {"narrative": "Natural conversational response"}`;
+  "psychology_hint": "Mindset note",
+  "memory_hint": "Key pattern or insight to remember about this trader's style/preferences - ALWAYS include this field, use null if no insight"
+}
+
+IMPORTANT: Always include ALL fields in your JSON response, including memory_hint (use null if no insight).`
+      : `You are an experienced trading coach having an ongoing conversation with a trader. You remember the context of your previous discussions and adapt to their profile. Respond naturally and conversationally like you're continuing a chat with a fellow trader. Keep it concise but reference previous context when relevant.
+
+${userContext}${memoryContext}
+
+Always respond with valid JSON in this exact format:
+{
+  "narrative": "Natural conversational response",
+  "memory_hint": "Key insight to remember about this trader's style, preferences, or patterns - ALWAYS include this field, use null if no insight"
+}
+
+IMPORTANT: Always include the memory_hint field in your response, even if it's null.`;
 
     // Build messages array starting with system prompt
     const messages = [{ role: "system", content: systemPrompt }];
@@ -205,12 +301,15 @@ serve(async (req) => {
     console.log('OpenAI response received');
 
     const rawContent = data.choices[0].message?.content ?? "";
+    console.log('Raw AI response:', rawContent);
     
     let feedback: any;
     try {
       feedback = JSON.parse(rawContent);
+      console.log('Parsed AI response:', JSON.stringify(feedback, null, 2));
     } catch (parseError) {
       console.warn('Failed to parse JSON response, using fallback');
+      console.log('Parse error:', parseError);
       feedback = {
         narrative: rawContent || "I'm having trouble processing your request right now. Please try again.",
       };
@@ -223,6 +322,7 @@ serve(async (req) => {
 
     const latency_ms = Date.now() - start;
     console.log(`Analysis completed in ${latency_ms}ms`);
+    console.log('Final feedback object:', JSON.stringify(feedback, null, 2));
 
     return new Response(JSON.stringify({ feedback, latency_ms }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

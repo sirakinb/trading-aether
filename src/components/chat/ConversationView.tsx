@@ -56,7 +56,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
   return (
     <div className="flex-1 overflow-y-auto space-y-4 p-4">
       {messages.map((message) => (
-        <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+        <div key={message.id} id={`message-${message.id}`} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
           <div className={`max-w-[80%] ${message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'} rounded-lg p-4 space-y-3`}>
             {/* User message content */}
             {message.role === 'user' && (
