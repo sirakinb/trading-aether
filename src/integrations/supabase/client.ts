@@ -7,18 +7,22 @@ const DEFAULT_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3Mi
 
 const isValidHttpUrl = (value: unknown): value is string => {
   if (typeof value !== 'string' || value.trim() === '') return false;
-  try {
-    const url = new URL(value);
-    return url.protocol === 'http:' || url.protocol === 'https:';
-  } catch {
-    return false;
-  }
+  // Allow any string that looks like a URL (less strict validation)
+  return value.includes('supabase.co') || value.startsWith('http://') || value.startsWith('https://');
 };
 
 // Resolve envs with validation and safe fallbacks
 const resolvedUrl = isValidHttpUrl(import.meta.env.VITE_SUPABASE_URL)
   ? import.meta.env.VITE_SUPABASE_URL
   : DEFAULT_SUPABASE_URL;
+
+// Debug logging for environment variables
+console.log('Environment debug:', {
+  VITE_SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL,
+  VITE_SUPABASE_PUBLISHABLE_KEY: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ? 'Present' : 'Missing',
+  resolvedUrl,
+  resolvedAnonKey: resolvedAnonKey ? 'Present' : 'Missing'
+});
 
 if (resolvedUrl === DEFAULT_SUPABASE_URL && import.meta.env.VITE_SUPABASE_URL) {
   // Provided value exists but is invalid
