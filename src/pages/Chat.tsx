@@ -101,7 +101,22 @@ const Chat = () => {
           .order('created_at', { ascending: true });
 
         if (!messagesError && conversationMessages) {
-          setMessages(conversationMessages);
+          // Process messages and generate signed URLs for images
+          const processedMessages = await Promise.all(
+            conversationMessages.map(async (msg) => {
+              let processedMsg = { ...msg };
+              
+              // Generate signed URL for image if it exists and looks like a file path
+              if (msg.image_url && msg.image_url.startsWith('charts/')) {
+                const signedUrl = await getSignedUrl(msg.image_url);
+                processedMsg.image_url = signedUrl || msg.image_url;
+              }
+              
+              return processedMsg;
+            })
+          );
+          
+          setMessages(processedMessages);
           
           // If we have a specific message ID, scroll to it after a short delay
           if (urlMessageId) {
@@ -148,13 +163,27 @@ const Chat = () => {
           .order('created_at', { ascending: true });
 
         if (!messagesError && conversationMessages) {
-          const formattedMessages = conversationMessages.map(msg => ({
-            ...msg,
-            role: msg.role as 'user' | 'ai',
-            analysis: msg.role === 'ai' ? { narrative: msg.text || '' } : undefined,
-          }));
-          setMessages(formattedMessages);
-          console.log(`Loaded ${formattedMessages.length} messages from recent conversation`);
+          // Process messages and generate signed URLs for images
+          const processedMessages = await Promise.all(
+            conversationMessages.map(async (msg) => {
+              let processedMsg = {
+                ...msg,
+                role: msg.role as 'user' | 'ai',
+                analysis: msg.role === 'ai' ? { narrative: msg.text || '' } : undefined,
+              };
+              
+              // Generate signed URL for image if it exists and looks like a file path
+              if (msg.image_url && msg.image_url.startsWith('charts/')) {
+                const signedUrl = await getSignedUrl(msg.image_url);
+                processedMsg.image_url = signedUrl || msg.image_url;
+              }
+              
+              return processedMsg;
+            })
+          );
+          
+          setMessages(processedMessages);
+          console.log(`Loaded ${processedMessages.length} messages from recent conversation`);
         }
         return;
       }
@@ -211,7 +240,7 @@ const Chat = () => {
     return true;
   };
 
-  // Upload file to Supabase Storage and get signed URL
+  // Upload file to Supabase Storage and return file path (not signed URL)
   const uploadToCharts = async (file: File): Promise<string> => {
     // Sanitize filename: remove spaces and special characters
     const sanitizedName = file.name
@@ -223,33 +252,59 @@ const Chat = () => {
 
     const { error: uploadError } = await supabase.storage
       .from('charts')
-      .upload(fileName, file); // Don't add charts/ prefix - it's already in the bucket
+      .upload(fileName, file);
 
     if (uploadError) {
       throw new Error(`Upload failed: ${uploadError.message}`);
     }
 
-    const { data: signedUrlData, error: signedUrlError } = await supabase.storage
-      .from('charts')
-      .createSignedUrl(fileName, 60 * 60 * 24);
+    // Return the file path instead of signed URL - we'll generate signed URLs when needed
+    return `charts/${fileName}`;
+  };
 
-    if (signedUrlError || !signedUrlData) {
-      throw new Error(`Failed to get signed URL: ${signedUrlError?.message}`);
+  // Helper function to generate signed URL from file path
+  const getSignedUrl = async (filePath: string): Promise<string | null> => {
+    try {
+      // Extract bucket and file name from path
+      const [bucket, ...pathParts] = filePath.split('/');
+      const fileName = pathParts.join('/');
+      
+      const { data: signedUrlData, error: signedUrlError } = await supabase.storage
+        .from(bucket)
+        .createSignedUrl(fileName, 60 * 60 * 24); // 24 hour expiry
+
+      if (signedUrlError || !signedUrlData) {
+        console.error('Failed to get signed URL:', signedUrlError);
+        return null;
+      }
+
+      return signedUrlData.signedUrl;
+    } catch (error) {
+      console.error('Error generating signed URL:', error);
+      return null;
     }
-
-    return signedUrlData.signedUrl;
   };
 
   const handleFileUpload = async (file: File): Promise<string | null> => {
     if (!validateFile(file)) return null;
 
     try {
-      const imageUrl = await uploadToCharts(file);
+      const filePath = await uploadToCharts(file);
+      
+      // Generate signed URL for immediate display
+      const signedUrl = await getSignedUrl(filePath);
+      
+      if (!signedUrl) {
+        throw new Error('Failed to generate signed URL for uploaded image');
+      }
+      
       toast({
         title: "Image uploaded",
         description: "Your chart has been uploaded successfully",
       });
-      return imageUrl;
+      
+      // Return the signed URL for immediate display, but we'll store the file path in the database
+      return signedUrl;
     } catch (error) {
       console.error('Upload error:', error);
       toast({
@@ -284,11 +339,22 @@ const Chat = () => {
         throw new Error('User not authenticated');
       }
 
+      // Convert signed URL back to file path for storage if it's a signed URL
+      let imagePathForStorage = imageUrl;
+      if (imageUrl && imageUrl.includes('supabase.co/storage/v1/object/sign/')) {
+        // Extract file path from signed URL
+        const urlParts = imageUrl.split('/');
+        const signIndex = urlParts.indexOf('sign');
+        if (signIndex !== -1 && signIndex + 1 < urlParts.length) {
+          imagePathForStorage = urlParts.slice(signIndex + 1).join('/').split('?')[0];
+        }
+      }
+
       const messageData: any = {
         conversation_id: conversationId,
         role,
         text: text || null,
-        image_url: imageUrl || null,
+        image_url: imagePathForStorage || null,
       };
 
       console.log('Saving message data:', messageData);

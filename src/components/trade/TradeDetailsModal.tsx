@@ -93,7 +93,15 @@ export const TradeDetailsModal: React.FC<TradeDetailsModalProps> = ({
           }
           
           if (message.image_url) {
-            foundChartImage = message.image_url;
+            // Generate signed URL if it's a file path
+            if (message.image_url.startsWith('charts/')) {
+              const { data: signedUrlData } = await supabase.storage
+                .from('charts')
+                .createSignedUrl(message.image_url.replace('charts/', ''), 60 * 60 * 24);
+              foundChartImage = signedUrlData?.signedUrl || message.image_url;
+            } else {
+              foundChartImage = message.image_url;
+            }
           }
         }
       }
@@ -110,7 +118,15 @@ export const TradeDetailsModal: React.FC<TradeDetailsModalProps> = ({
 
         if (!error && userMessages && userMessages.length > 0) {
           // Use the most recent user message with an image
-          foundChartImage = userMessages[0].image_url;
+          const imageUrl = userMessages[0].image_url;
+          if (imageUrl && imageUrl.startsWith('charts/')) {
+            const { data: signedUrlData } = await supabase.storage
+              .from('charts')
+              .createSignedUrl(imageUrl.replace('charts/', ''), 60 * 60 * 24);
+            foundChartImage = signedUrlData?.signedUrl || imageUrl;
+          } else {
+            foundChartImage = imageUrl;
+          }
         }
       }
 
@@ -124,7 +140,16 @@ export const TradeDetailsModal: React.FC<TradeDetailsModalProps> = ({
           .order('created_at', { ascending: false });
 
         if (!error && anyMessages && anyMessages.length > 0) {
-          foundChartImage = anyMessages[0].image_url;
+          // Use the most recent message with an image
+          const imageUrl = anyMessages[0].image_url;
+          if (imageUrl && imageUrl.startsWith('charts/')) {
+            const { data: signedUrlData } = await supabase.storage
+              .from('charts')
+              .createSignedUrl(imageUrl.replace('charts/', ''), 60 * 60 * 24);
+            foundChartImage = signedUrlData?.signedUrl || imageUrl;
+          } else {
+            foundChartImage = imageUrl;
+          }
         }
       }
 
