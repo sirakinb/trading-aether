@@ -108,12 +108,28 @@ const Chat = () => {
               
               console.log('Processing message:', msg.id, 'image_url:', msg.image_url);
               
-              // Generate signed URL for image if it exists and looks like a file path
-              if (msg.image_url && msg.image_url.startsWith('charts/')) {
-                console.log('Generating signed URL for image:', msg.image_url);
-                const signedUrl = await getSignedUrl(msg.image_url);
-                processedMsg.image_url = signedUrl || msg.image_url;
-                console.log('Updated image_url to:', processedMsg.image_url);
+              // Generate signed URL for image if it exists
+              if (msg.image_url) {
+                if (msg.image_url.startsWith('charts/')) {
+                  // File path - generate new signed URL
+                  console.log('Generating signed URL for file path:', msg.image_url);
+                  const signedUrl = await getSignedUrl(msg.image_url);
+                  processedMsg.image_url = signedUrl || msg.image_url;
+                  console.log('Updated image_url to:', processedMsg.image_url);
+                } else if (msg.image_url.includes('supabase.co/storage/v1/object/sign/')) {
+                  // Already a signed URL - extract file path and generate fresh signed URL
+                  const urlParts = msg.image_url.split('/');
+                  const signIndex = urlParts.indexOf('sign');
+                  if (signIndex !== -1 && signIndex + 1 < urlParts.length) {
+                    const filePath = urlParts.slice(signIndex + 1).join('/').split('?')[0];
+                    console.log('Extracting file path from signed URL:', msg.image_url, '->', filePath);
+                    const freshSignedUrl = await getSignedUrl(filePath);
+                    processedMsg.image_url = freshSignedUrl || msg.image_url;
+                    console.log('Generated fresh signed URL:', processedMsg.image_url);
+                  }
+                } else {
+                  console.log('Image URL format not recognized:', msg.image_url);
+                }
               }
               
               return processedMsg;
@@ -178,12 +194,28 @@ const Chat = () => {
               
               console.log('Processing recent message:', msg.id, 'image_url:', msg.image_url);
               
-              // Generate signed URL for image if it exists and looks like a file path
-              if (msg.image_url && msg.image_url.startsWith('charts/')) {
-                console.log('Generating signed URL for recent message image:', msg.image_url);
-                const signedUrl = await getSignedUrl(msg.image_url);
-                processedMsg.image_url = signedUrl || msg.image_url;
-                console.log('Updated recent message image_url to:', processedMsg.image_url);
+              // Generate signed URL for image if it exists
+              if (msg.image_url) {
+                if (msg.image_url.startsWith('charts/')) {
+                  // File path - generate new signed URL
+                  console.log('Generating signed URL for recent message file path:', msg.image_url);
+                  const signedUrl = await getSignedUrl(msg.image_url);
+                  processedMsg.image_url = signedUrl || msg.image_url;
+                  console.log('Updated recent message image_url to:', processedMsg.image_url);
+                } else if (msg.image_url.includes('supabase.co/storage/v1/object/sign/')) {
+                  // Already a signed URL - extract file path and generate fresh signed URL
+                  const urlParts = msg.image_url.split('/');
+                  const signIndex = urlParts.indexOf('sign');
+                  if (signIndex !== -1 && signIndex + 1 < urlParts.length) {
+                    const filePath = urlParts.slice(signIndex + 1).join('/').split('?')[0];
+                    console.log('Extracting file path from recent message signed URL:', msg.image_url, '->', filePath);
+                    const freshSignedUrl = await getSignedUrl(filePath);
+                    processedMsg.image_url = freshSignedUrl || msg.image_url;
+                    console.log('Generated fresh signed URL for recent message:', processedMsg.image_url);
+                  }
+                } else {
+                  console.log('Recent message image URL format not recognized:', msg.image_url);
+                }
               }
               
               return processedMsg;
@@ -280,18 +312,18 @@ const Chat = () => {
       const fileName = pathParts.join('/');
       
       console.log('Extracted bucket:', bucket, 'fileName:', fileName);
-      
-      const { data: signedUrlData, error: signedUrlError } = await supabase.storage
+
+    const { data: signedUrlData, error: signedUrlError } = await supabase.storage
         .from(bucket)
         .createSignedUrl(fileName, 60 * 60 * 24); // 24 hour expiry
 
-      if (signedUrlError || !signedUrlData) {
+    if (signedUrlError || !signedUrlData) {
         console.error('Failed to get signed URL:', signedUrlError);
         return null;
-      }
+    }
 
       console.log('Generated signed URL:', signedUrlData.signedUrl);
-      return signedUrlData.signedUrl;
+    return signedUrlData.signedUrl;
     } catch (error) {
       console.error('Error generating signed URL:', error);
       return null;
@@ -361,6 +393,9 @@ const Chat = () => {
         if (signIndex !== -1 && signIndex + 1 < urlParts.length) {
           imagePathForStorage = urlParts.slice(signIndex + 1).join('/').split('?')[0];
         }
+        console.log('Converted signed URL to file path:', imageUrl, '->', imagePathForStorage);
+      } else {
+        console.log('Image URL is already a file path or null:', imageUrl);
       }
 
       const messageData: any = {
