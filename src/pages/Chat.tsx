@@ -106,10 +106,14 @@ const Chat = () => {
             conversationMessages.map(async (msg) => {
               let processedMsg = { ...msg };
               
+              console.log('Processing message:', msg.id, 'image_url:', msg.image_url);
+              
               // Generate signed URL for image if it exists and looks like a file path
               if (msg.image_url && msg.image_url.startsWith('charts/')) {
+                console.log('Generating signed URL for image:', msg.image_url);
                 const signedUrl = await getSignedUrl(msg.image_url);
                 processedMsg.image_url = signedUrl || msg.image_url;
+                console.log('Updated image_url to:', processedMsg.image_url);
               }
               
               return processedMsg;
@@ -172,10 +176,14 @@ const Chat = () => {
                 analysis: msg.role === 'ai' ? { narrative: msg.text || '' } : undefined,
               };
               
+              console.log('Processing recent message:', msg.id, 'image_url:', msg.image_url);
+              
               // Generate signed URL for image if it exists and looks like a file path
               if (msg.image_url && msg.image_url.startsWith('charts/')) {
+                console.log('Generating signed URL for recent message image:', msg.image_url);
                 const signedUrl = await getSignedUrl(msg.image_url);
                 processedMsg.image_url = signedUrl || msg.image_url;
+                console.log('Updated recent message image_url to:', processedMsg.image_url);
               }
               
               return processedMsg;
@@ -265,9 +273,13 @@ const Chat = () => {
   // Helper function to generate signed URL from file path
   const getSignedUrl = async (filePath: string): Promise<string | null> => {
     try {
+      console.log('getSignedUrl called with filePath:', filePath);
+      
       // Extract bucket and file name from path
       const [bucket, ...pathParts] = filePath.split('/');
       const fileName = pathParts.join('/');
+      
+      console.log('Extracted bucket:', bucket, 'fileName:', fileName);
       
       const { data: signedUrlData, error: signedUrlError } = await supabase.storage
         .from(bucket)
@@ -278,6 +290,7 @@ const Chat = () => {
         return null;
       }
 
+      console.log('Generated signed URL:', signedUrlData.signedUrl);
       return signedUrlData.signedUrl;
     } catch (error) {
       console.error('Error generating signed URL:', error);
